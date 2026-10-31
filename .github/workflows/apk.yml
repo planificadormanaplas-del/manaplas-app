@@ -1,3 +1,4 @@
+# Firma: secretos ANDROID_KEYSTORE_B64 y ANDROID_KEYSTORE_PASS (respaldo en el Drive de la empresa, carpeta "App manapplas").
 # Compila el APK de Android cada vez que se sube un cambio de la app a main,
 # y lo publica en "Releases" para descargarlo e instalarlo en el teléfono.
 # Enlace fijo a la última versión:
