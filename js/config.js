@@ -3,5 +3,5 @@
 // API_URL: la URL /exec de la implementación de la API en Apps Script.
 self.APP_CONFIG = {
   VERSION: '0.1.0',
-  API_URL: ''
+  API_URL: 'https://script.google.com/macros/s/AKfycbxQuhxBbbjI9c34FVoqYoC5XA0oaEzBxk8lTLk-MSLV89MPNpITIAzUyhRHG27ZhJvh5A/exec'
 };
