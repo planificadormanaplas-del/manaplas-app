@@ -47,7 +47,11 @@ js/config.js            VERSIÓN de la app y dirección de la API   ← lo que m
 js/db.js                Almacenamiento local (IndexedDB)
 js/api.js               Llamadas a la API
 js/app.js               Pantallas y lógica
-icons/                  Íconos de la app
+icons/                  Íconos de la app (web)
+assets/                 Íconos y pantalla de inicio del APK (originales de 1024 px)
+android/                Proyecto Android (Capacitor)
+scripts/build-www.js    Copia la app a www/ para meterla en el APK
+.github/workflows/      Compilación automática del APK
 api/Codigo.gs           Copia del código de la API (el que corre está en Apps Script)
 ```
 
@@ -73,7 +77,18 @@ Así la URL no cambia.
 
 ## Instalar la app en el teléfono
 
-- **Android (Chrome):** abrir el link → menú ⋮ → **Instalar aplicación** (o "Agregar a pantalla principal").
+### Android: APK (recomendado)
+Descargar desde el teléfono: **https://github.com/planificadormanaplas-del/manaplas-app/releases/latest/download/Manaplas.apk**
+→ abrir el archivo → permitir "instalar apps de origen desconocido" si lo pide → **Instalar**.
+
+- El APK se compila solo con GitHub Actions (`.github/workflows/apk.yml`) cada vez que se sube un cambio a `main`, y queda en **Releases**.
+- Cuando hay versión nueva, la app muestra un aviso amarillo para descargarla e instalarla encima (no se pierden datos).
+- Está empaquetada con **Capacitor** (`capacitor.config.json`, carpeta `android/`). Los archivos de la app van dentro del APK.
+- **Firma:** la llave está en los secretos del repositorio `ANDROID_KEYSTORE_B64` y `ANDROID_KEYSTORE_PASS`, con respaldo en el Drive de la empresa.
+  Siempre hay que usar la misma llave; si se pierde, las versiones nuevas no se instalan encima.
+
+### Versión web
+- **Android (Chrome):** abrir el link → menú ⋮ → **Instalar aplicación**.
 - **iPhone (Safari):** abrir el link → botón Compartir → **Agregar a pantalla de inicio**.
 
 ## Dar o quitar acceso
@@ -88,4 +103,4 @@ en las propiedades del proyecto de la API y se le da la nueva solo a quien corre
 - [ ] Planta en vivo: estado de máquinas desde la app de recorrido.
 - [ ] Mapa de planta con el estado de cada máquina.
 - [ ] Seguimiento compartido (guardado en una hoja, no solo en el teléfono).
-- [ ] Empaquetar como APK si hace falta tenerla en Play Store.
+- [ ] Publicar en Play Store (opcional; hoy se instala con el APK).

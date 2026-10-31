@@ -217,3 +217,10 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
   background: var(--tinta); color: #fff; padding: 10px 16px; border-radius: 12px;
   font-size: 14px; max-width: calc(100% - 28px); box-shadow: 0 6px 20px rgba(0,0,0,.18);
 }
+
+/* ---------- Aviso de versión nueva (app Android) */
+.actualizar {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--amarillo); color: var(--tinta); padding: 10px 16px; font-size: 14px;
+}
+.actualizar span { font-size: 12px; }

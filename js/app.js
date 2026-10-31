@@ -446,9 +446,11 @@
 
       <div class="titulo">Aplicación</div>
       <div class="tarjeta filas">
-        <div><span>Versión de la app</span><b>${esc(APP_CONFIG.VERSION)}</b></div>
+        <div><span>Versión de la app</span><b>${esc(APP_CONFIG.VERSION)} · ${NATIVA ? 'Android' : 'web'}</b></div>
         <div><span>Versión de la API</span><b>${esc(E.versionApi || '—')}</b></div>
       </div>
+
+      ${NATIVA ? '' : `<a class="boton sec" href="${APK_URL}" style="display:block;text-align:center;margin-top:10px">Descargar app para Android (APK)</a>`}
 
       <div class="titulo">Conexión</div>
       <form id="f-api" class="tarjeta">
@@ -491,6 +493,7 @@
     }
     repintar();
     if (E.clave) sincronizar(false);
+    revisarActualizacion();
     setInterval(pintarSync, 60000);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || !E.clave) return;
@@ -499,8 +502,37 @@
     });
   }
 
-  // Service worker: hace que la app se instale y abra sin señal
-  if ('serviceWorker' in navigator) {
+  // ============================================================ App Android (APK)
+
+  const NATIVA = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const REPO = 'planificadormanaplas-del/manaplas-app';
+  const APK_URL = `https://github.com/${REPO}/releases/latest/download/Manaplas.apk`;
+
+  const masNueva = (a, b) => {   // ¿la versión a es mayor que b?
+    const x = String(a).replace(/^v/, '').split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+    return false;
+  };
+
+  async function revisarActualizacion() {
+    if (!NATIVA || !navigator.onLine) return;
+    try {
+      const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!r.ok) return;
+      const rel = await r.json();
+      if (!masNueva(rel.tag_name, APP_CONFIG.VERSION)) return;
+      const nueva = rel.tag_name.replace(/^v/, '');
+      const b = document.createElement('a');
+      b.className = 'actualizar';
+      b.href = APK_URL;
+      b.innerHTML = `<b>Nueva versión ${esc(nueva)}</b><span>Toca para descargar e instalar</span>`;
+      document.body.insertBefore(b, document.getElementById('vista'));
+    } catch (e) { /* sin conexión: se revisa la próxima vez */ }
+  }
+
+  // Service worker (solo versión web): hace que la app se instale y abra sin señal.
+  // En el APK los archivos ya vienen dentro de la app, así que no hace falta.
+  if (!NATIVA && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       // Solo recarga cuando una versión nueva reemplaza a otra (no en la primera instalación)
       const habiaVersion = !!navigator.serviceWorker.controller;

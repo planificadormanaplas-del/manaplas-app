@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Manaplas</string>
+    <string name="title_activity_main">Manaplas</string>
+    <string name="package_name">com.manaplas.planificacion</string>
+    <string name="custom_url_scheme">com.manaplas.planificacion</string>
+</resources>
