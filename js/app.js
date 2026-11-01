@@ -477,44 +477,70 @@
 
   // ============================================================ Pantalla: máquinas
 
-  // Plano de la planta (según el formato de asignación de personal). x, y, ancho, alto en unidades del plano.
+  // Plano de la planta: misma ubicación que el mapa del recorrido.
+  // Cada máquina: [centro x, centro y, ancho, alto, giro en grados]. Unidades del plano.
   const PLANO = (() => {
     const p = {};
-    for (let i = 0; i < 14; i++) p[String(201 + i)] = [10 + i * 38, 14, 32, 88];
-    p['218'] = [556, 14, 72, 19]; p['217'] = [556, 37, 34, 19]; p['216'] = [556, 60, 72, 19]; p['215'] = [556, 83, 72, 19];
-    for (let i = 0; i < 24; i++) p[String(101 + i)] = [10 + i * 32, 132, 28, 74];
-    p['306'] = [812, 10, 76, 26]; p['302'] = [812, 42, 36, 26]; p['305'] = [852, 42, 36, 26];
-    p['301'] = [812, 74, 36, 26]; p['304'] = [852, 74, 36, 26];
-    for (let i = 0; i < 19; i++) p[String(125 + i)] = [812, 116 + i * 19, 76, 16];
+    const caja = (n, x, y, w, h) => { p[n] = [x + w / 2, y + h / 2, w, h, 0]; };
+    // Máquinas 201–209
+    caja('201', 155, 28, 142, 32);
+    [195, 236, 278, 321, 362, 404, 448, 489].forEach((cx, i) => { p[String(202 + i)] = [cx, 160, 32, 96, 22]; });
+    // Máquinas 210–218
+    [578, 621, 664, 706, 749].forEach((cx, i) => { p[String(210 + i)] = [cx, 160, 32, 96, 22]; });
+    caja('218', 880, 30, 150, 32);
+    caja('217', 1005, 76, 27, 84);
+    caja('216', 880, 175, 150, 32);
+    caja('215', 810, 228, 75, 26);
+    // Soplado
+    caja('306', 1126, 42, 64, 30);
+    caja('302', 1068, 98, 58, 32); caja('305', 1134, 98, 58, 32);
+    caja('301', 1068, 156, 58, 32); caja('304', 1134, 156, 58, 32);
+    // Máquinas 101–112
+    caja('101', 175, 376, 27, 104); caja('102', 213, 376, 27, 104); caja('103', 251, 376, 27, 104);
+    [317, 352, 387, 422, 456, 490, 525, 560, 593].forEach((cx, i) => { p[String(104 + i)] = [cx, 430, 30, 100, 22]; });
+    // Máquinas 113–124
+    [637, 671, 705, 739, 773, 806, 839, 874, 908, 941, 975, 1008].forEach((cx, i) => { p[String(113 + i)] = [cx, 430, 30, 100, 22]; });
+    // Máquinas 125–143 (debajo del bloque 101–124)
+    for (let i = 0; i < 19; i++) p[String(125 + i)] = [190 + i * 44, 590, 30, 100, 22];
     return p;
   })();
-  const PLANO_ANCHO = 898, PLANO_ALTO = 478;
-  const ZONAS = [
-    [10, 2, 'Línea II · 201–218'], [10, 120, 'Línea I · 101–124'], [812, 2, 'Soplado'], [812, 108, '125–143']
+  const PLANO_ANCHO = 1210, PLANO_ALTO = 660;
+  // Bloques: [x, y, ancho, alto, título]
+  const BLOQUES = [
+    [2, 6, 518, 287, 'Máquinas 201–209'], [528, 6, 512, 287, 'Máquinas 210–218'], [1052, 6, 154, 229, 'Soplado'],
+    [156, 342, 438, 152, 'Máquinas 101–112'], [600, 342, 440, 152, 'Máquinas 113–124'],
+    [156, 512, 884, 146, 'Máquinas 125–143']
   ];
 
   function mapaHtml() {
-    // Solo las máquinas que pueden operar. Color según lo que tienen: produciendo, OP por iniciar o libre.
-    const cajas = Object.entries(PLANO).map(([n, [x, y, w, h]]) => {
+    // Solo las máquinas que pueden operar. Color según lo que tienen: produciendo, OP por arrancar o libre.
+    const cajas = Object.entries(PLANO).map(([n, [cx, cy, w, h, giro]]) => {
       const m = E.porMaq[n];
       if (!m || !/^operativa$/i.test(m.est)) return '';
       const ops = E.opsPorMaq[n] || [];
       const enProceso = ops.some(o => !/pendiente/i.test(o.clas));
-      const k = enProceso ? { c: 'var(--verde)', t: '#fff' } : ops.length ? { c: 'var(--pastel)', t: '#6B5300' } : { c: 'var(--libre)', t: '#4F5B67' };
-      const vertical = h > w;
+      const k = enProceso ? { c: 'var(--verde)', t: '#fff', b: 'var(--verde)' }
+        : ops.length ? { c: 'var(--narciso)', t: '#5C4A00', b: '#E6DA00' }
+        : { c: '#fff', t: '#4F5B67', b: '#AEB9C7' };
       const op = ops[0];
       const pct = op && op.uni ? Math.min(1, op.prod / op.uni) : 0;
+      const x = cx - w / 2, y = cy - h / 2;
+      const textoGiro = h > w ? giro - 90 : giro;
       return `<a href="#/m/${n}" class="mapa-maq">
-        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${k.c}"/>
-        ${enProceso ? `<rect x="${x + 2}" y="${y + h - 5}" width="${Math.max(2, (w - 4) * pct)}" height="3" rx="1.5" fill="#fff" opacity=".9"/>` : ''}
-        ${ops.length > 1 ? `<circle cx="${x + w - 5}" cy="${y + 5}" r="3.2" fill="#fff"/>` : ''}
-        <text x="${x + w / 2}" y="${y + h / 2}" class="${vertical ? 'v' : ''}" fill="${k.t}" transform="${vertical ? `rotate(-90 ${x + w / 2} ${y + h / 2})` : ''}">${n}</text>
+        <g transform="rotate(${giro} ${cx} ${cy})">
+          <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${k.c}" stroke="${k.b}" stroke-width="2"/>
+          ${enProceso ? `<rect x="${x + 4}" y="${y + h - 8}" width="${Math.max(3, (w - 8) * pct)}" height="4" rx="2" fill="#fff" opacity=".95"/>` : ''}
+          ${ops.length > 1 ? `<circle cx="${x + w - 6}" cy="${y + 6}" r="4.5" fill="#fff" stroke="${k.b}"/>` : ''}
+        </g>
+        <text x="${cx}" y="${cy}" fill="${k.t}" transform="rotate(${textoGiro} ${cx} ${cy})">${n}</text>
       </a>`;
     }).join('');
-    const zonas = ZONAS.map(([x, y, t]) => `<text x="${x}" y="${y + 4}" class="zona">${t}</text>`).join('');
+    const bloques = BLOQUES.map(([x, y, w, h, t]) =>
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" class="bloque"/><text x="${x + 14}" y="${y + 20}" class="zona">${t}</text>`).join('')
+      + `<text x="${PLANO_ANCHO / 2 - 30}" y="324" class="zona pasillo">PASILLO</text>`;
     return `
       <div class="mapa-caja" id="mapa-caja">
-        <svg id="mapa" viewBox="-4 -6 ${PLANO_ANCHO + 8} ${PLANO_ALTO + 10}" style="width:${E.zoomMapa ? E.zoomMapa * PLANO_ANCHO + 'px' : '100%'}">${zonas}${cajas}</svg>
+        <svg id="mapa" viewBox="0 0 ${PLANO_ANCHO} ${PLANO_ALTO}" style="width:${E.zoomMapa ? E.zoomMapa * PLANO_ANCHO + 'px' : '100%'}">${bloques}${cajas}</svg>
       </div>
       <div class="mapa-ctrl">
         <button type="button" data-z="0" class="txt">Ver toda la planta</button>
@@ -523,7 +549,7 @@
       </div>
       <div class="leyenda">
         <span><i style="--c:var(--verde)"></i>Produciendo (barra = avance)</span>
-        <span><i style="--c:var(--pastel)"></i>OP por arrancar</span>
+        <span><i style="--c:var(--narciso)"></i>OP por arrancar</span>
         <span><i class="libre"></i>Libre, sin OP</span>
         <span><i class="blanco"></i>Más OP en cola</span>
       </div>
