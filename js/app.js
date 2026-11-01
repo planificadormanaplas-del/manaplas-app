@@ -21,6 +21,8 @@
     notasHora: 0,         // última vez que se bajaron las notas
     autor: 'Royseg Coello - Planificador Junior',
     filtroMaq: 'todas',
+    vistaMaq: 'mapa',
+    zoomMapa: null,       // null = ajustar al ancho de la pantalla
     filtroNotas: 'Pendiente',
     textoNotas: ''
   };
@@ -304,9 +306,9 @@
       $res.innerHTML = `
         <div class="titulo">${st('grafico_cumplimiento')} Hoy</div>
         <div class="resumen">
-          <a class="cuenta" href="#/alertas" style="--c:var(--rojo)"><div class="cuenta-n num">${crit}</div><div class="cuenta-t">🚨 Críticos</div></a>
-          <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t">🔥 Urgentes</div></a>
-          <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t">🏭 Con OP</div></div>
+          <a class="cuenta" href="#/alertas" style="--c:var(--rojo)"><div class="cuenta-n num">${crit}</div><div class="cuenta-t"><i class="punto" style="--c:var(--rojo)"></i>Críticos</div></a>
+          <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t"><i class="punto" style="--c:var(--naranja)"></i>Urgentes</div></a>
+          <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t"><i class="punto" style="--c:var(--azul)"></i>Con OP abierta</div></div>
         </div>
         ${pend ? `<a class="tarjeta enlace-notas" href="#/notas">${st('checklist', 'st-mini')} <b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
         ${seg.length ? `<div class="titulo">⭐ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
@@ -475,6 +477,59 @@
 
   // ============================================================ Pantalla: máquinas
 
+  // Plano de la planta (según el formato de asignación de personal). x, y, ancho, alto en unidades del plano.
+  const PLANO = (() => {
+    const p = {};
+    p['201'] = [10, 10, 488, 40];
+    for (let i = 0; i < 13; i++) p[String(202 + i)] = [10 + i * 38, 60, 32, 92];
+    p['218'] = [514, 10, 72, 40]; p['217'] = [514, 58, 34, 40]; p['216'] = [514, 106, 72, 40]; p['215'] = [514, 154, 72, 40];
+    for (let i = 0; i < 24; i++) p[String(101 + i)] = [10 + i * 32, 214, 28, 74];
+    p['306'] = [812, 10, 76, 26]; p['302'] = [812, 42, 36, 26]; p['305'] = [852, 42, 36, 26];
+    p['301'] = [812, 74, 36, 26]; p['304'] = [852, 74, 36, 26];
+    for (let i = 0; i < 19; i++) p[String(125 + i)] = [812, 116 + i * 25, 76, 21];
+    return p;
+  })();
+  const PLANO_ANCHO = 898, PLANO_ALTO = 596;
+  const ZONAS = [
+    [10, 2, 'Línea II · 201–218'], [10, 206, 'Línea I · 101–124'], [812, 2, 'Soplado'], [812, 108, '125–143']
+  ];
+
+  function mapaHtml() {
+    const cajas = Object.entries(PLANO).map(([n, [x, y, w, h]]) => {
+      const m = E.porMaq[n];
+      const k = estMaq(m && m.est);
+      const ops = E.opsPorMaq[n] || [];
+      const enProceso = ops.some(o => !/pendiente/i.test(o.clas));
+      const vertical = h > w;
+      const op = ops[0];
+      const pct = op && op.uni ? Math.min(1, op.prod / op.uni) : 0;
+      return `<a href="#/m/${n}" class="mapa-maq">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${k.c}" opacity="${m ? 1 : .35}"/>
+        ${enProceso ? `<rect x="${x + 2}" y="${y + h - 5}" width="${Math.max(2, (w - 4) * pct)}" height="3" rx="1.5" fill="#fff" opacity=".9"/>` : ''}
+        ${ops.length ? `<circle cx="${x + w - 5}" cy="${y + 5}" r="3.2" fill="#fff"/>` : ''}
+        <text x="${x + w / 2}" y="${y + h / 2}" class="${vertical ? 'v' : ''}" fill="${k.t}" transform="${vertical ? `rotate(-90 ${x + w / 2} ${y + h / 2})` : ''}">${n}</text>
+      </a>`;
+    }).join('');
+    const zonas = ZONAS.map(([x, y, t]) => `<text x="${x}" y="${y + 4}" class="zona">${t}</text>`).join('');
+    return `
+      <div class="mapa-caja" id="mapa-caja">
+        <svg id="mapa" viewBox="-4 -6 ${PLANO_ANCHO + 8} ${PLANO_ALTO + 10}" style="width:${E.zoomMapa ? E.zoomMapa * PLANO_ANCHO + 'px' : '100%'}">${zonas}${cajas}</svg>
+      </div>
+      <div class="mapa-ctrl">
+        <button type="button" data-z="0" class="txt">Ver toda la planta</button>
+        <button type="button" data-z="-1" aria-label="Alejar">−</button>
+        <button type="button" data-z="1" aria-label="Acercar">+</button>
+      </div>
+      <div class="leyenda">
+        <span><i style="--c:var(--verde)"></i>Operativa</span>
+        <span><i style="--c:var(--pizarra)"></i>Espera logística</span>
+        <span><i style="--c:var(--naranja)"></i>Intervención técnica</span>
+        <span><i style="--c:var(--rojo)"></i>Fuera de servicio</span>
+        <span><i class="blanco"></i>Con OP · barra = avance</span>
+      </div>
+      <div class="nota">Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
+  }
+
   function pintarMaquinas() {
     if (!E.datos || !E.datos.maquinas) { $vista.innerHTML = `<div class="vacio"><b>Sin datos de máquinas</b>Actualiza los datos (la API debe ser versión 1.1 o más).</div>`; return; }
     const filtros = { todas: 'Todas', libres: 'Operativas sin OP', paradas: 'No operativas' };
@@ -485,13 +540,32 @@
     lista.forEach(m => { (grupos[m.lin || 'Otras'] = grupos[m.lin || 'Otras'] || []).push(m); });
     $vista.innerHTML = `
       <div class="cabecera">${st('mantenimiento', 'st-grande')}<div><b>Máquinas</b><span>Estatus, lo que tienen montado y qué cabe en cada una</span></div></div>
+      <div class="segmento">
+        <button type="button" data-vista="mapa" class="${E.vistaMaq === 'mapa' ? 'on' : ''}">Mapa</button>
+        <button type="button" data-vista="lista" class="${E.vistaMaq === 'lista' ? 'on' : ''}">Lista</button>
+      </div>
+      ${E.vistaMaq === 'mapa' ? mapaHtml() : `
       <div class="chips" style="margin:0 0 4px">
         ${Object.entries(filtros).map(([k, t]) => `<button class="chip ${E.filtroMaq === k ? 'on' : ''}" data-f="${k}" type="button">${t}</button>`).join('')}
       </div>
       ${Object.entries(grupos).map(([lin, ms]) => `
         <div class="titulo">${esc(lin)} · ${ms.length}</div>
-        <div class="lista">${ms.map(maqItemHtml).join('')}</div>`).join('') || `<div class="vacio">Ninguna máquina con ese filtro.</div>`}`;
+        <div class="lista">${ms.map(maqItemHtml).join('')}</div>`).join('') || `<div class="vacio">Ninguna máquina con ese filtro.</div>`}`}`;
     $vista.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => { E.filtroMaq = b.dataset.f; pintarMaquinas(); }));
+    $vista.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => {
+      E.vistaMaq = b.dataset.vista; DB.set('vistaMaq', E.vistaMaq); pintarMaquinas();
+    }));
+    $vista.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => {
+      const svg = document.getElementById('mapa');
+      const caja = document.getElementById('mapa-caja');
+      const ajuste = (caja.clientWidth - 16) / PLANO_ANCHO;            // zoom que muestra toda la planta
+      const actual = E.zoomMapa || ajuste;
+      const z = Number(b.dataset.z);
+      E.zoomMapa = z === 0 ? null : Math.min(2.2, Math.max(ajuste, actual * (z > 0 ? 1.4 : 1 / 1.4)));
+      if (E.zoomMapa && Math.abs(E.zoomMapa - ajuste) < 0.01) E.zoomMapa = null;
+      DB.set('zoomMapa', E.zoomMapa);
+      svg.style.width = E.zoomMapa ? (E.zoomMapa * PLANO_ANCHO) + 'px' : '100%';
+    }));
   }
 
   function maqItemHtml(m) {
@@ -765,9 +839,9 @@
     const a = alertas();
     $vista.innerHTML = `
       <div class="cabecera">${st('saco_materia_prima', 'st-grande')}<div><b>Alertas</b><span>Activos en crítico o urgente que <b>no tienen OP abierta</b>, en orden de ranking.</span></div></div>
-      <div class="titulo">🚨 Críticos · ${a.crit.length}</div>
-      ${a.crit.length ? `<div class="lista">${a.crit.map(itemHtml).join('')}</div>` : `<div class="vacio">${st('checklist', 'st-grande')}<b>Ninguno 🎉</b></div>`}
-      <div class="titulo">🔥 Urgentes · ${a.urg.length}</div>
+      <div class="titulo"><i class="punto" style="--c:var(--rojo)"></i>Críticos · ${a.crit.length}</div>
+      ${a.crit.length ? `<div class="lista">${a.crit.map(itemHtml).join('')}</div>` : `<div class="vacio">${st('checklist', 'st-grande')}<b>Ninguno</b></div>`}
+      <div class="titulo"><i class="punto" style="--c:var(--naranja)"></i>Urgentes · ${a.urg.length}</div>
       ${a.urg.length ? `<div class="lista">${a.urg.map(itemHtml).join('')}</div>` : `<div class="vacio">Ninguno</div>`}`;
   }
 
@@ -851,8 +925,10 @@
   async function iniciar() {
     $sync.addEventListener('click', () => sincronizar(true));
     try {
-      const [clave, datos, seg, rec, vApi, notas, cola, autor] = await Promise.all(
-        ['clave', 'datos', 'seguimiento', 'recientes', 'versionApi', 'notas', 'cola', 'autor'].map(k => DB.get(k)));
+      const [clave, datos, seg, rec, vApi, notas, cola, autor, vistaMaq, zoomMapa] = await Promise.all(
+        ['clave', 'datos', 'seguimiento', 'recientes', 'versionApi', 'notas', 'cola', 'autor', 'vistaMaq', 'zoomMapa'].map(k => DB.get(k)));
+      if (vistaMaq) E.vistaMaq = vistaMaq;
+      if (zoomMapa) E.zoomMapa = zoomMapa;
       E.notas = notas || [];
       E.cola = cola || [];
       if (autor && !/^Reysecoello/.test(autor)) E.autor = autor;
