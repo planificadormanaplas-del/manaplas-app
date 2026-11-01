@@ -480,18 +480,17 @@
   // Plano de la planta (según el formato de asignación de personal). x, y, ancho, alto en unidades del plano.
   const PLANO = (() => {
     const p = {};
-    p['201'] = [10, 10, 488, 40];
-    for (let i = 0; i < 13; i++) p[String(202 + i)] = [10 + i * 38, 60, 32, 92];
-    p['218'] = [514, 10, 72, 40]; p['217'] = [514, 58, 34, 40]; p['216'] = [514, 106, 72, 40]; p['215'] = [514, 154, 72, 40];
-    for (let i = 0; i < 24; i++) p[String(101 + i)] = [10 + i * 32, 214, 28, 74];
+    for (let i = 0; i < 14; i++) p[String(201 + i)] = [10 + i * 38, 14, 32, 88];
+    p['218'] = [556, 14, 72, 19]; p['217'] = [556, 37, 34, 19]; p['216'] = [556, 60, 72, 19]; p['215'] = [556, 83, 72, 19];
+    for (let i = 0; i < 24; i++) p[String(101 + i)] = [10 + i * 32, 132, 28, 74];
     p['306'] = [812, 10, 76, 26]; p['302'] = [812, 42, 36, 26]; p['305'] = [852, 42, 36, 26];
     p['301'] = [812, 74, 36, 26]; p['304'] = [852, 74, 36, 26];
-    for (let i = 0; i < 19; i++) p[String(125 + i)] = [812, 116 + i * 25, 76, 21];
+    for (let i = 0; i < 19; i++) p[String(125 + i)] = [812, 116 + i * 19, 76, 16];
     return p;
   })();
-  const PLANO_ANCHO = 898, PLANO_ALTO = 596;
+  const PLANO_ANCHO = 898, PLANO_ALTO = 478;
   const ZONAS = [
-    [10, 2, 'Línea II · 201–218'], [10, 206, 'Línea I · 101–124'], [812, 2, 'Soplado'], [812, 108, '125–143']
+    [10, 2, 'Línea II · 201–218'], [10, 120, 'Línea I · 101–124'], [812, 2, 'Soplado'], [812, 108, '125–143']
   ];
 
   function mapaHtml() {
@@ -501,7 +500,7 @@
       if (!m || !/^operativa$/i.test(m.est)) return '';
       const ops = E.opsPorMaq[n] || [];
       const enProceso = ops.some(o => !/pendiente/i.test(o.clas));
-      const k = enProceso ? { c: 'var(--verde)', t: '#fff' } : ops.length ? { c: 'var(--azul)', t: '#fff' } : { c: 'var(--libre)', t: '#4F5B67' };
+      const k = enProceso ? { c: 'var(--verde)', t: '#fff' } : ops.length ? { c: 'var(--pastel)', t: '#6B5300' } : { c: 'var(--libre)', t: '#4F5B67' };
       const vertical = h > w;
       const op = ops[0];
       const pct = op && op.uni ? Math.min(1, op.prod / op.uni) : 0;
@@ -524,7 +523,7 @@
       </div>
       <div class="leyenda">
         <span><i style="--c:var(--verde)"></i>Produciendo (barra = avance)</span>
-        <span><i style="--c:var(--azul)"></i>OP por iniciar</span>
+        <span><i style="--c:var(--pastel)"></i>OP por arrancar</span>
         <span><i class="libre"></i>Libre, sin OP</span>
         <span><i class="blanco"></i>Más OP en cola</span>
       </div>
