@@ -316,3 +316,6 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
 .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--c); margin-right: 5px; vertical-align: -2px; }
 .leyenda i.blanco { background: #fff; border: 2px solid var(--tinta-3); border-radius: 50%; width: 10px; height: 10px; }
 .leyenda i.libre { background: #fff; border: 2px solid #AEB9C7; }
+
+.recorrido .rc-prod { font-size: 16px; font-weight: 700; margin-top: 10px; }
+.recorrido .rc-notas { margin-top: 8px; font-size: 14px; color: var(--tinta-2); font-style: italic; }

@@ -520,9 +520,23 @@
     falla: { c: '#9AA5B4', t: '#fff', b: '#8793A3', txt: 'Falla / mantenimiento' },
     falta: { c: 'var(--lila)', t: '#fff', b: 'var(--lila)', txt: 'Falta operario / materia prima' },
     prueba: { c: 'var(--azul)', t: '#fff', b: 'var(--azul)', txt: 'Prueba' },
-    libre: { c: '#fff', t: '#4F5B67', b: '#AEB9C7', txt: 'Sin OP' }
+    libre: { c: '#fff', t: '#4F5B67', b: '#AEB9C7', txt: 'Sin OP / orden finalizada' }
   };
+  const recorridoDe = (n) => E.datos && E.datos.recorrido && E.datos.recorrido.maquinas && E.datos.recorrido.maquinas[n];
   function estadoMapa(n) {
+    // 1) Último registro del recorrido
+    const rc = recorridoDe(n);
+    if (rc) {
+      const e = norm(rc.est);
+      if (e.startsWith('produciendo')) return 'produciendo';
+      if (e.startsWith('por arrancar')) return 'arrancar';
+      if (e.startsWith('cambio de molde')) return 'molde';
+      if (e.startsWith('falla') || e.startsWith('mantenimiento')) return 'falla';
+      if (e.startsWith('falta')) return 'falta';
+      if (e.startsWith('prueba')) return 'prueba';
+      return 'libre';
+    }
+    // 2) Estatus del Seguimiento de OP
     const r = E.datos && E.datos.estadoMaq && E.datos.estadoMaq[n];
     if (r) {
       const e = r.est.toUpperCase();
@@ -577,7 +591,7 @@
       <div class="leyenda">
         ${Object.values(COLOR_MAPA).map(k => `<span><i style="--c:${k.c};border:1.5px solid ${k.b}"></i>${k.txt}</span>`).join('')}
       </div>
-      <div class="nota">Colores según el estatus de hoy en el Seguimiento de OP. Barra blanca = avance de la OP.</div>
+      <div class="nota">${E.datos.recorrido ? `Colores según el último recorrido (${fechaHora(E.datos.recorrido.ultimo)}). Si una máquina no salió en el recorrido, se usa el Seguimiento de OP.` : 'Colores según el estatus del Seguimiento de OP.'} Barra blanca = avance de la OP.</div>
       <div class="nota">Solo se muestran las máquinas operativas (${(E.datos.maquinas || []).filter(m => /^operativa$/i.test(m.est) && PLANO[m.n]).length}). Las demás están en Lista. Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
   }
 
@@ -663,8 +677,25 @@
         <div class="estado-g">${esc(m.est || '—')}</div>
         <div class="estado-p">${m.cap ? fmt(m.cap) + ' toneladas' : ''}${m.tipo ? `<br>Tipo ${esc(m.tipo)}` : ''}</div>
       </div>
-      ${E.datos.estadoMaq && E.datos.estadoMaq[n] ? (() => { const k = COLOR_MAPA[estadoMapa(n)]; const r = E.datos.estadoMaq[n];
-        return `<div class="tarjeta hoy-maq"><span class="tag" style="--c:${k.c};--t:${k.t};border:1.5px solid ${k.b}">${esc(r.est)}</span> <span>Estatus de hoy${r.prod ? ' · ' + esc(r.prod) : ''}</span></div>`; })() : ''}
+      ${(() => {
+        const k = COLOR_MAPA[estadoMapa(n)];
+        const tag = (t) => `<span class="tag" style="--c:${k.c};--t:${k.t};border:1.5px solid ${k.b}">${esc(t)}</span>`;
+        const rc = recorridoDe(n), r = E.datos.estadoMaq && E.datos.estadoMaq[n];
+        if (rc) return `<div class="titulo">${st('checklist')} Último recorrido</div>
+          <div class="tarjeta recorrido">
+            <div class="op-cab">${tag(rc.est)}<span class="nota-fecha">${fechaHora(rc.fecha)}${rc.por ? ' · ' + esc(rc.por) : ''}</span></div>
+            <div class="rc-prod">${esc(corto(rc.prod) || rc.prod)}</div>
+            <div class="op-fechas">${[rc.color, rc.op ? 'OP ' + rc.op : ''].filter(Boolean).map(esc).join(' · ')}</div>
+            ${rc.notas ? `<div class="rc-notas">“${esc(rc.notas)}”</div>` : ''}
+          </div>`;
+        if (r) return `<div class="tarjeta hoy-maq">${tag(r.est)} <span>Estatus de hoy${r.prod ? ' · ' + esc(r.prod) : ''}</span></div>`;
+        return '';
+      })()}
+      ${(() => {
+        const cs = E.datos.recorrido && E.datos.recorrido.comentarios && E.datos.recorrido.comentarios[n];
+        return cs && cs.length ? `<div class="titulo">Comentarios del recorrido</div><div class="tarjeta cerradas">${cs.map(c =>
+          `<div class="cerrada"><div><b>${esc(c.nombre)}</b><br><span>${esc(c.msj)}</span></div><div class="nota-fecha" style="text-align:right">${fechaHora(c.fecha)}</div></div>`).join('')}</div>` : '';
+      })()}
 
       <div class="titulo">${st('tolva')} Órdenes en esta máquina</div>
       ${ops.length ? ops.map(o => {

@@ -29,12 +29,15 @@
  *        Ejecutar como: Yo   ·   Acceso: Cualquier persona
  */
 
-const VERSION_API = '1.2.0';
+const VERSION_API = '1.3.0';
 
 // Archivos fuente
 const ID_MPS = '12jKC01EUcIg9bpTMJ6i3MzBrBrgYiv8g1EYES3PF4Mo';        // MPS
 const ID_SEGUIMIENTO = '1ypAmmdEtWpYUEHPN8kdCbVHV9ZtDqJfTdTJp8kVTyEs'; // Seguimiento de OP
 const ID_BD = '1koJFsuSpleLc1xCc8RnfZFzQyQGj_xlgwmgr0NUGMlM';          // Base de Datos Planificación
+const ID_RECORRIDO = '1GeLfgV0o6bK09fCNgybceptR0jwRRkjXmLVVzXTW2C8';    // Secuencia de OP (app de recorrido)
+const DIAS_RECORRIDO = 2;      // se toma el último registro de cada máquina de los últimos 2 días con recorrido
+const DIAS_COMENTARIOS = 7;    // comentarios por máquina de los últimos 7 días
 
 // Notas
 const ENC_NOTAS = ['ID', 'Fecha', 'Autor', 'Etiqueta', 'Producto', 'Máquina', 'Nota', 'Estado', 'Actualizado'];
@@ -282,6 +285,7 @@ function construirDatos_() {
     maquinas: maquinas,
     opsAbiertas: opsAbiertas,
     estadoMaq: estadoMaquinas_(registro),
+    recorrido: leerRecorrido_(tz),
     piezas: piezasPorBase          // piezas por código base (4 primeros dígitos del producto)
   };
 }
@@ -304,6 +308,53 @@ function estadoMaquinas_(registro) {
   });
   Object.values(res).forEach(v => delete v._pr);
   return res;
+}
+
+/** Recorrido (Secuencia de OP): último registro de cada máquina y comentarios recientes.
+ *  ProduccionD: A Fecha, B Hora, C Máquina, D COD OP, E Producto, F Color, G Estado, H Notas, I Reportado por.
+ *  Comentarios: A Fecha, B Hora, C Nombre, D Máquina, E Mensaje, F ID, G Descartado. */
+function leerRecorrido_(tz) {
+  let libro;
+  try { libro = SpreadsheetApp.openById(ID_RECORRIDO); } catch (e) { return null; }   // sin acceso: el mapa usa el Seguimiento
+  const filas = hoja_(libro, 'ProduccionD').getDataRange().getValues().slice(1)
+    .map(r => ({ f: fechaHora_(r[0]), maq: txt_(r[2]), op: txt_(r[3]), prod: txt_(r[4]), color: txt_(r[5]), est: txt_(r[6]), notas: txt_(r[7]), por: txt_(r[8]) }))
+    .filter(x => x.f && x.maq && x.est);
+  if (!filas.length) return null;
+  const ultimo = Math.max.apply(null, filas.map(x => x.f.getTime()));
+  const desde = ultimo - DIAS_RECORRIDO * 864e5;
+  const maquinas = {};
+  filas.forEach(x => {
+    const t = x.f.getTime();
+    if (t < desde) return;
+    const a = maquinas[x.maq];
+    if (!a || t > a._t) maquinas[x.maq] = {
+      _t: t, est: x.est, fecha: Utilities.formatDate(x.f, tz, "yyyy-MM-dd'T'HH:mm:ss"),
+      op: x.op, prod: x.prod, color: x.color, notas: x.notas, por: x.por
+    };
+  });
+  Object.values(maquinas).forEach(v => delete v._t);
+
+  const comentarios = {};
+  const hc = libro.getSheetByName('Comentarios');
+  if (hc) {
+    const desdeC = Date.now() - DIAS_COMENTARIOS * 864e5;
+    hc.getDataRange().getValues().slice(1).forEach(r => {
+      const f = fechaHora_(r[0]), maq = txt_(r[3]), msj = txt_(r[4]);
+      const descartado = r[6] === true || /^(si|sí|true|x)$/i.test(txt_(r[6]));
+      if (!f || !maq || !msj || descartado || f.getTime() < desdeC) return;
+      (comentarios[maq] = comentarios[maq] || []).push({ fecha: Utilities.formatDate(f, tz, "yyyy-MM-dd'T'HH:mm:ss"), nombre: txt_(r[2]), msj: msj });
+    });
+    Object.values(comentarios).forEach(l => { l.sort((a, b) => (b.fecha > a.fecha ? 1 : -1)); l.splice(5); });
+  }
+  return { ultimo: Utilities.formatDate(new Date(ultimo), tz, "yyyy-MM-dd'T'HH:mm:ss"), maquinas: maquinas, comentarios: comentarios };
+}
+
+/** Acepta fechas reales o texto "dd/MM/yyyy H:mm:ss". */
+function fechaHora_(v) {
+  if (v instanceof Date) return v;
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(txt_(v));
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0));
 }
 
 /** Regla de tonelaje: la pieza va en máquinas de su misma centena y nunca en una más pequeña.

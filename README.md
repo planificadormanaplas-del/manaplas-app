@@ -18,6 +18,7 @@ Hojas de Google (fuentes)  →  API (Apps Script)  →  App en el teléfono (est
 |---|---|---|
 | **Fuentes** | Archivo **MPS** (hojas `Stock de Seguridad`, `Inv Query`, `Inventario MPS`, `MPS`), archivo **Seguimiento de Orden de Producción Actualización Diaria** (hoja `Resumen de OP`) y **Base de Datos Planificación** (hojas `Componentes` y `Maquinas/Producto`) | Donde se trabaja todos los días. La app solo las lee. |
 | **Registros** | Archivo **App Manaplas · Registros** (lo crea la API) | Lo que se escribe desde la app: notas. |
+| **Recorrido** | Archivo **Secuencia de OP** (hojas `ProduccionD` y `Comentarios`), de la app de recorrido | Colores del mapa (último registro de cada máquina, últimos 2 días) y comentarios por máquina. Solo lectura. |
 | **API** | Proyecto Apps Script independiente. Copia del código en [`api/Codigo.gs`](api/Codigo.gs) | Lee las fuentes, arma un paquete con todos los productos y lo guarda en caché. Se recalcula sola cada 10 minutos. |
 | **App** | Este repositorio, publicado con GitHub Pages | Descarga el paquete, lo guarda en el teléfono (IndexedDB) y lo muestra. Funciona sin señal con los últimos datos. |
 
