@@ -6,6 +6,7 @@ const ARCHIVOS = [
   './',
   'index.html',
   'css/app.css',
+  'css/fonts/nunito-latin-900-normal.woff2',
   'js/config.js',
   'js/db.js',
   'js/api.js',

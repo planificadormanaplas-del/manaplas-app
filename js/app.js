@@ -19,12 +19,13 @@
     notas: [],            // notas (las del servidor + las que faltan por enviar)
     cola: [],             // notas pendientes por enviar (sin señal)
     notasHora: 0,         // última vez que se bajaron las notas
-    autor: 'Reysecoello · Planificador Junior',
+    autor: 'Royseg Coello - Planificador Junior',
     filtroMaq: 'todas',
     filtroNotas: 'Pendiente',
     textoNotas: ''
   };
   const ETIQUETAS = ['General', 'Color', 'Molde', 'Material', 'Inventario', 'Producción', 'Máquina'];
+  const EMOJI_ETIQ = { General: '📝', Color: '🎨', Molde: '🔧', Material: '🧪', Inventario: '📦', 'Producción': '🏭', 'Máquina': '⚙️' };
   const COLOR_ETIQ = {
     General: 'var(--tinta-3)', Color: '#8E44AD', Molde: 'var(--naranja)', Material: '#6D4C41',
     Inventario: 'var(--azul)', 'Producción': 'var(--verde)', 'Máquina': 'var(--rojo)'
@@ -60,7 +61,7 @@
     'CRITICO': { c: 'var(--rojo)', t: '#fff', txt: 'CRÍTICO' },
     'CRÍTICO': { c: 'var(--rojo)', t: '#fff', txt: 'CRÍTICO' },
     'URGENTE': { c: 'var(--naranja)', t: '#fff', txt: 'URGENTE' },
-    'PLANIFICAR': { c: 'var(--amarillo)', t: '#17212B', txt: 'PLANIFICAR' },
+    'PLANIFICAR': { c: 'var(--lila)', t: '#fff', txt: 'PLANIFICAR' },
     'OK': { c: 'var(--verde)', t: '#fff', txt: 'OK' },
     'EN PRODUCCIÓN': { c: 'var(--azul)', t: '#fff', txt: 'EN PRODUCCIÓN' }
   };
@@ -69,7 +70,7 @@
     'PRODUCIR': { c: 'var(--naranja)', t: '#fff' },
     'CRÍTICO': { c: 'var(--rojo)', t: '#fff' },
     'CRITICO': { c: 'var(--rojo)', t: '#fff' },
-    'PLANIFICAR': { c: 'var(--amarillo)', t: '#17212B' },
+    'PLANIFICAR': { c: 'var(--lila)', t: '#fff' },
     'BIEN': { c: 'var(--verde)', t: '#fff' }
   };
   const tagEstado = (s) => {
@@ -299,16 +300,16 @@
       const seg = E.seguimiento.map(c => E.porCod[c]).filter(Boolean);
       const pend = E.notas.filter(n => n.estado !== 'Resuelta').length;
       $res.innerHTML = `
-        <div class="titulo">Hoy</div>
+        <div class="titulo">☀️ Hoy</div>
         <div class="resumen">
-          <a class="cuenta" href="#/alertas" style="--c:var(--rojo)"><div class="cuenta-n num">${crit}</div><div class="cuenta-t">Críticos</div></a>
-          <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t">Urgentes</div></a>
-          <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t">Con OP abierta</div></div>
+          <a class="cuenta" href="#/alertas" style="--c:var(--rojo)"><div class="cuenta-n num">${crit}</div><div class="cuenta-t">🚨 Críticos</div></a>
+          <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t">🔥 Urgentes</div></a>
+          <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t">🏭 Con OP</div></div>
         </div>
-        ${pend ? `<a class="tarjeta enlace-notas" href="#/notas"><b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
-        ${seg.length ? `<div class="titulo">★ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
-        ${rec.length ? `<div class="titulo">Vistos recientemente</div><div class="lista">${rec.map(itemHtml).join('')}</div>`
-                     : `<div class="vacio"><b>Busca un producto</b>Escribe el código (ej. 6825) o parte del nombre (ej. silla blanco).</div>`}`;
+        ${pend ? `<a class="tarjeta enlace-notas" href="#/notas">📝 <b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
+        ${seg.length ? `<div class="titulo">⭐ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
+        ${rec.length ? `<div class="titulo">🕘 Vistos recientemente</div><div class="lista">${rec.map(itemHtml).join('')}</div>`
+                     : `<div class="vacio"><b>🔎 Busca un producto</b>Escribe el código (ej. 6825) o parte del nombre (ej. silla blanco).</div>`}`;
       return;
     }
 
@@ -365,19 +366,16 @@
         <div class="dato"><div class="dato-t">Venta promedio / mes</div><div class="dato-v num">${fmt(p.pv)}</div><div class="dato-s">SS ${fmt(p.ss)} · Objetivo ${fmt(p.so)}</div></div>
       </div>
 
-      <div class="titulo">Órdenes de producción</div>
+      <div class="titulo">🏭 Órdenes de producción</div>
       ${abiertas.length ? abiertas.map(opHtml).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
       ${cerradas.length ? `<div class="tarjeta cerradas" style="margin-top:8px">
           ${cerradas.map(o => `<div class="cerrada"><div><b>${esc(o.op)}</b> · Máq ${esc(o.maq)}<br><span>${o.fin ? 'Cerró ' + fechaCorta(o.fin) : esc(o.clas)}</span></div><div class="num" style="text-align:right">${fmt(o.buenas)}<br><span>buenas</span></div></div>`).join('')}
         </div>` : ''}
 
-      <div class="titulo">Piezas y máquinas</div>
+      <div class="titulo">🧩 Piezas y máquinas</div>
       ${piezasHtml(p)}
 
-      <div class="titulo titulo-accion">Notas <a href="#/nota/nueva?prod=${encodeURIComponent(p.c)}">+ Agregar</a></div>
-      ${notasCortasHtml(n => n.producto === p.c, 'Sin notas de este producto.')}
-
-      <div class="titulo">MPS</div>
+      <div class="titulo">📅 MPS</div>
       ${mpsHtml(p)}
     `;
 
@@ -433,7 +431,7 @@
 
   const EST_MAQ = {
     'operativa': { c: 'var(--verde)', t: '#fff' },
-    'espera logística': { c: 'var(--amarillo)', t: '#17212B' },
+    'espera logística': { c: 'var(--pizarra)', t: '#fff' },
     'intervención técnica': { c: 'var(--naranja)', t: '#fff' },
     'fuera de servicio': { c: 'var(--rojo)', t: '#fff' }
   };
@@ -470,7 +468,7 @@
           ${valido ? `<div class="maq-chips">${chips}</div>` : `<div class="aviso-dato">Tonelaje sin dato válido: consultar con Moldes.</div>`}
           ${ahora ? `<div class="pieza-ahora">● Montada ahora en la ${esc(ahora)}</div>` : ''}
         </div>`;
-    }).join('') + `<div class="nota">Máquinas de la misma centena de tonelaje y nunca más pequeñas que la pieza. Verde = operativa · amarillo = espera logística · naranja = intervención · rojo = fuera de servicio.</div>`;
+    }).join('') + `<div class="nota">Máquinas de la misma centena de tonelaje y nunca más pequeñas que la pieza. Verde = operativa · gris = espera logística · naranja = intervención · rojo = fuera de servicio.</div>`;
   }
 
   // ============================================================ Pantalla: máquinas
@@ -538,19 +536,16 @@
         <div class="estado-p">${m.cap ? fmt(m.cap) + ' toneladas' : ''}${m.tipo ? `<br>Tipo ${esc(m.tipo)}` : ''}</div>
       </div>
 
-      <div class="titulo">Órdenes en esta máquina</div>
+      <div class="titulo">🏭 Órdenes en esta máquina</div>
       ${ops.length ? ops.map(o => {
         const p = E.porCod[o.cod];
         return `<a href="#/p/${encodeURIComponent(o.cod)}" class="enlace-op">${opHtml(o, p ? p.n : o.cod)}</a>`;
       }).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
 
-      <div class="titulo">Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
+      <div class="titulo">🎯 Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
       ${candidatos.length ? `<div class="lista">${candidatos.slice(0, 40).map(({ p, z }) =>
         itemHtml(p).replace('<div class="item-nom">', `<div class="item-pieza">${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</div><div class="item-nom">`)).join('')}</div>`
-        : `<div class="vacio">Ningún producto crítico o urgente sin OP tiene piezas para esta máquina.</div>`}
-
-      <div class="titulo titulo-accion">Notas <a href="#/nota/nueva?maq=${encodeURIComponent(m.n)}">+ Agregar</a></div>
-      ${notasCortasHtml(x => x.maquina === m.n, 'Sin notas de esta máquina.')}`;
+        : `<div class="vacio">Ningún producto crítico o urgente sin OP tiene piezas para esta máquina.</div>`}`;
   }
 
   // ============================================================ Notas
@@ -560,7 +555,7 @@
     const d = new Date(iso); if (isNaN(d)) return '';
     return `${d.getDate()} ${MESES[d.getMonth()]} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
-  const tagEtiq = (e) => `<span class="tag" style="--c:${COLOR_ETIQ[e] || 'var(--tinta-3)'}">${esc(e || 'General')}</span>`;
+  const tagEtiq = (e) => `<span class="tag" style="--c:${COLOR_ETIQ[e] || 'var(--tinta-3)'}">${EMOJI_ETIQ[e] || '📝'} ${esc(e || 'General')}</span>`;
 
   function notaHtml(n, compacta) {
     const p = n.producto && E.porCod[n.producto];
@@ -614,7 +609,7 @@
           </div>
         </div>
         <div id="res-notas"></div>
-        <a class="fab" href="#/nota/nueva">+ Nueva nota</a>`;
+        <a class="fab" href="#/nota/nueva">✏️ Nueva nota</a>`;
       const qn = document.getElementById('qn');
       qn.addEventListener('input', () => { E.textoNotas = qn.value; pintarListaNotas(); });
       $vista.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
@@ -640,45 +635,30 @@
     });
     $r.innerHTML = l.length
       ? `<div class="titulo">${l.length} nota${l.length === 1 ? '' : 's'}</div><div class="notas-lista">${l.map(n => notaHtml(n, false)).join('')}</div>`
-      : `<div class="vacio"><b>${E.notas.length ? 'Sin notas con ese filtro' : 'Todavía no hay notas'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
+      : `<div class="vacio"><b>${E.notas.length ? 'Sin notas con ese filtro' : '📝 Tu libreta está vacía'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
   }
 
   function pintarEditorNota(id, q) {
     const existente = id && id !== 'nueva' ? E.notas.find(n => n.id === id) : null;
     const n = existente || {
-      etiqueta: 'General', estado: 'Pendiente',
-      producto: (q && q.get('prod')) || '', maquina: (q && q.get('maq')) || '', texto: ''
+      etiqueta: 'General', estado: 'Pendiente', producto: '', maquina: '', texto: ''
     };
-    const prodNombre = (c) => (E.porCod[c] ? E.porCod[c].n : '');
     $vista.innerHTML = `
       <div class="ficha-top">
         <button class="volver" type="button" aria-label="Volver" onclick="history.back()">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <div class="ficha-tit"><div class="ficha-nom">${existente ? 'Editar nota' : 'Nueva nota'}</div>
+        <div class="ficha-tit"><div class="ficha-nom">${existente ? '✏️ Editar nota' : '📝 Nueva nota'}</div>
           ${existente ? `<div class="ficha-cod">${fechaHora(n.fecha)} · ${esc(n.autor || '')}</div>` : ''}</div>
       </div>
       <form id="f-nota" class="tarjeta" style="margin-top:14px">
         <div class="campo">
           <label for="n-texto">Nota</label>
-          <textarea id="n-texto" rows="6" required placeholder="Ej.: 6535-4 necesita terracota, revisar MB con almacén">${esc(n.texto)}</textarea>
+          <textarea id="n-texto" rows="9" required placeholder="Escribe aquí… ej.: Pedir MB terracota para los materos de 35 cm">${esc(n.texto)}</textarea>
         </div>
         <div class="campo">
           <label>Etiqueta</label>
-          <div class="chips chips-wrap">${ETIQUETAS.map(e => `<button class="chip ${n.etiqueta === e ? 'on' : ''}" data-e="${e}" type="button">${e}</button>`).join('')}</div>
-        </div>
-        <div class="campo">
-          <label for="n-prod">Producto (opcional)</label>
-          <input id="n-prod" list="lista-prod" placeholder="Código, ej. 6535-4" value="${esc(n.producto)}" autocomplete="off">
-          <datalist id="lista-prod">${E.datos ? E.datos.productos.map(p => `<option value="${esc(p.c)}">${esc(p.n)}</option>`).join('') : ''}</datalist>
-          <div class="campo-ayuda" id="n-prod-nom">${esc(prodNombre(n.producto))}</div>
-        </div>
-        <div class="campo">
-          <label for="n-maq">Máquina (opcional)</label>
-          <select id="n-maq">
-            <option value="">—</option>
-            ${E.datos && E.datos.maquinas ? E.datos.maquinas.map(m => `<option value="${esc(m.n)}" ${n.maquina === m.n ? 'selected' : ''}>${esc(m.n)}${m.cap ? ' · ' + fmt(m.cap) + ' t' : ''} · ${esc(m.est)}</option>`).join('') : ''}
-          </select>
+          <div class="chips chips-wrap">${ETIQUETAS.map(e => `<button class="chip ${n.etiqueta === e ? 'on' : ''}" data-e="${e}" type="button">${EMOJI_ETIQ[e]} ${e}</button>`).join('')}</div>
         </div>
         ${existente ? `<label class="check"><input type="checkbox" id="n-resuelta" ${n.estado === 'Resuelta' ? 'checked' : ''}> Resuelta</label>` : ''}
         <button class="boton" type="submit">Guardar nota</button>
@@ -688,8 +668,6 @@
       etiqueta = b.dataset.e;
       $vista.querySelectorAll('[data-e]').forEach(x => x.classList.toggle('on', x === b));
     }));
-    const $prod = document.getElementById('n-prod');
-    $prod.addEventListener('input', () => { document.getElementById('n-prod-nom').textContent = prodNombre($prod.value.trim().toUpperCase()); });
     if (!existente) setTimeout(() => document.getElementById('n-texto').focus(), 50);
     document.getElementById('f-nota').addEventListener('submit', (ev) => {
       ev.preventDefault();
@@ -701,8 +679,8 @@
         fecha: existente ? existente.fecha : new Date().toISOString(),
         autor: existente ? existente.autor : E.autor,
         etiqueta,
-        producto: $prod.value.trim().toUpperCase(),
-        maquina: document.getElementById('n-maq').value,
+        producto: existente ? existente.producto || '' : '',
+        maquina: existente ? existente.maquina || '' : '',
         texto,
         estado: chk ? (chk.checked ? 'Resuelta' : 'Pendiente') : 'Pendiente'
       });
@@ -784,9 +762,9 @@
     const a = alertas();
     $vista.innerHTML = `
       <div class="nota" style="margin-top:0">Productos activos en crítico o urgente que <b>no tienen OP abierta</b>, en orden de ranking.</div>
-      <div class="titulo">Críticos · ${a.crit.length}</div>
+      <div class="titulo">🚨 Críticos · ${a.crit.length}</div>
       ${a.crit.length ? `<div class="lista">${a.crit.map(itemHtml).join('')}</div>` : `<div class="vacio">Ninguno 🎉</div>`}
-      <div class="titulo">Urgentes · ${a.urg.length}</div>
+      <div class="titulo">🔥 Urgentes · ${a.urg.length}</div>
       ${a.urg.length ? `<div class="lista">${a.urg.map(itemHtml).join('')}</div>` : `<div class="vacio">Ninguno</div>`}`;
   }
 
@@ -874,7 +852,7 @@
         ['clave', 'datos', 'seguimiento', 'recientes', 'versionApi', 'notas', 'cola', 'autor'].map(k => DB.get(k)));
       E.notas = notas || [];
       E.cola = cola || [];
-      if (autor) E.autor = autor;
+      if (autor && !/^Reysecoello/.test(autor)) E.autor = autor;
       E.clave = clave || null;
       E.seguimiento = seg || [];
       E.recientes = rec || [];
