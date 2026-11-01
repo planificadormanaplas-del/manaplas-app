@@ -638,7 +638,7 @@
     });
     $r.innerHTML = l.length
       ? `<div class="titulo">${l.length} nota${l.length === 1 ? '' : 's'}</div><div class="notas-lista">${l.map(n => notaHtml(n, false)).join('')}</div>`
-      : `<div class="vacio">${st('checklist', 'st-grande')}<b>${E.notas.length ? 'Sin notas con ese filtro' : 'Tu libreta está vacía'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
+      : `<div class="vacio">${st('checklist', 'st-grande')}<b>${E.notas.length ? 'Sin notas con ese filtro' : 'Tu libreta está vacía'}</b>Toca "Nueva nota" para escribir la primera.</div>`;
   }
 
   function pintarEditorNota(id, q) {
