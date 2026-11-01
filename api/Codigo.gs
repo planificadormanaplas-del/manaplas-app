@@ -29,7 +29,7 @@
  *        Ejecutar como: Yo   ·   Acceso: Cualquier persona
  */
 
-const VERSION_API = '1.1.0';
+const VERSION_API = '1.2.0';
 
 // Archivos fuente
 const ID_MPS = '12jKC01EUcIg9bpTMJ6i3MzBrBrgYiv8g1EYES3PF4Mo';        // MPS
@@ -149,7 +149,9 @@ function construirDatos_() {
   const invQuery = hoja_(libroMps, 'Inv Query').getDataRange().getValues();
   const cortes = hoja_(libroMps, 'Inventario MPS').getDataRange().getValues();
   const mps = hoja_(libroMps, 'MPS').getRange(MPS_RANGO).getValues();
-  const ops = hoja_(SpreadsheetApp.openById(ID_SEGUIMIENTO), 'Resumen de OP').getDataRange().getValues();
+  const libroSeg = SpreadsheetApp.openById(ID_SEGUIMIENTO);
+  const ops = hoja_(libroSeg, 'Resumen de OP').getDataRange().getValues();
+  const registro = hoja_(libroSeg, 'Registro').getDataRange().getValues();
   const libroBd = SpreadsheetApp.openById(ID_BD);
   const comp = hoja_(libroBd, 'Componentes').getRange('A1:N').getValues();
   const maqs = hoja_(libroBd, 'Maquinas/Producto').getRange('A1:F').getValues();
@@ -279,8 +281,29 @@ function construirDatos_() {
     productos: productos,
     maquinas: maquinas,
     opsAbiertas: opsAbiertas,
+    estadoMaq: estadoMaquinas_(registro),
     piezas: piezasPorBase          // piezas por código base (4 primeros dígitos del producto)
   };
+}
+
+/** Estatus actual de cada máquina según la hoja Registro del Seguimiento de OP
+ *  (C = COD, D = producto, M = máquina, N = estatus). Las filas cerradas (OC) y en cola (EC) no cuentan;
+ *  si una máquina tiene varias, gana la más importante para planta. */
+const PRIORIDAD_EST = ['CM', 'FALLA', 'MANTENIMIENTO', 'FO', 'FPM', 'P', 'PA', 'PRUEBA', 'SIN OP'];
+function estadoMaquinas_(registro) {
+  const res = {};
+  registro.slice(1).forEach(r => {
+    const maq = txt_(r[12]), est = txt_(r[13]);
+    if (!maq || !est) return;
+    const cod = est.toUpperCase().split(' ')[0];
+    const clave = /^SIN OP/i.test(est) ? 'SIN OP' : (/^FALLA/i.test(est) ? 'FALLA' : (/^MANTENIMIENTO/i.test(est) ? 'MANTENIMIENTO' : (/^PRUEBA/i.test(est) ? 'PRUEBA' : cod)));
+    const pr = PRIORIDAD_EST.indexOf(clave);
+    if (pr < 0) return;                        // OC, EC u otros
+    const actual = res[maq];
+    if (!actual || pr < actual._pr) res[maq] = { est: est, cod: txt_(r[2]), prod: txt_(r[3]), _pr: pr };
+  });
+  Object.values(res).forEach(v => delete v._pr);
+  return res;
 }
 
 /** Regla de tonelaje: la pieza va en máquinas de su misma centena y nunca en una más pequeña.

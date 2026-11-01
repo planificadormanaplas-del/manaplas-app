@@ -500,17 +500,45 @@
     [317, 352, 387, 422, 456, 490, 525, 560, 593].forEach((cx, i) => { p[String(104 + i)] = [cx, 430, 30, 100, 22]; });
     // Máquinas 113–124
     [637, 671, 705, 739, 773, 806, 839, 874, 908, 941, 975, 1008].forEach((cx, i) => { p[String(113 + i)] = [cx, 430, 30, 100, 22]; });
-    // Máquinas 125–143 (debajo del bloque 101–124)
-    for (let i = 0; i < 19; i++) p[String(125 + i)] = [190 + i * 44, 590, 30, 100, 22];
+    // Máquinas 125–143: columna vertical a la derecha, debajo de Soplado
+    for (let i = 0; i < 19; i++) caja(String(125 + i), 1078, 270 + i * 21.5, 102, 18);
     return p;
   })();
-  const PLANO_ANCHO = 1210, PLANO_ALTO = 660;
+  const PLANO_ANCHO = 1210, PLANO_ALTO = 684;
   // Bloques: [x, y, ancho, alto, título]
   const BLOQUES = [
     [2, 6, 518, 287, 'Máquinas 201–209'], [528, 6, 512, 287, 'Máquinas 210–218'], [1052, 6, 154, 229, 'Soplado'],
     [156, 342, 438, 152, 'Máquinas 101–112'], [600, 342, 440, 152, 'Máquinas 113–124'],
-    [156, 512, 884, 146, 'Máquinas 125–143']
+    [1052, 243, 154, 438, 'Máquinas 125–143']
   ];
+
+  // Colores del mapa según el estatus de hoy (hoja Registro del Seguimiento de OP)
+  const COLOR_MAPA = {
+    produciendo: { c: 'var(--verde)', t: '#fff', b: 'var(--verde)', txt: 'Produciendo' },
+    arrancar: { c: 'var(--narciso)', t: '#5C4A00', b: '#E6DA00', txt: 'Por arrancar' },
+    molde: { c: 'var(--rojo)', t: '#fff', b: 'var(--rojo)', txt: 'Cambio de molde' },
+    falla: { c: '#9AA5B4', t: '#fff', b: '#8793A3', txt: 'Falla / mantenimiento' },
+    falta: { c: 'var(--lila)', t: '#fff', b: 'var(--lila)', txt: 'Falta operario / materia prima' },
+    prueba: { c: 'var(--azul)', t: '#fff', b: 'var(--azul)', txt: 'Prueba' },
+    libre: { c: '#fff', t: '#4F5B67', b: '#AEB9C7', txt: 'Sin OP' }
+  };
+  function estadoMapa(n) {
+    const r = E.datos && E.datos.estadoMaq && E.datos.estadoMaq[n];
+    if (r) {
+      const e = r.est.toUpperCase();
+      if (/^CM\b/.test(e)) return 'molde';
+      if (/^FALLA|^MANTENIMIENTO/.test(e)) return 'falla';
+      if (/^FO\b|^FPM\b/.test(e)) return 'falta';
+      if (/^P\b/.test(e)) return 'produciendo';
+      if (/^PA\b/.test(e)) return 'arrancar';
+      if (/^PRUEBA/.test(e)) return 'prueba';
+      return 'libre';
+    }
+    // Sin estatus en Registro: se usa la OP abierta
+    const ops = E.opsPorMaq[n] || [];
+    if (ops.some(o => !/pendiente/i.test(o.clas))) return 'produciendo';
+    return ops.length ? 'arrancar' : 'libre';
+  }
 
   function mapaHtml() {
     // Solo las máquinas que pueden operar. Color según lo que tienen: produciendo, OP por arrancar o libre.
@@ -518,10 +546,9 @@
       const m = E.porMaq[n];
       if (!m || !/^operativa$/i.test(m.est)) return '';
       const ops = E.opsPorMaq[n] || [];
-      const enProceso = ops.some(o => !/pendiente/i.test(o.clas));
-      const k = enProceso ? { c: 'var(--verde)', t: '#fff', b: 'var(--verde)' }
-        : ops.length ? { c: 'var(--narciso)', t: '#5C4A00', b: '#E6DA00' }
-        : { c: '#fff', t: '#4F5B67', b: '#AEB9C7' };
+      const estado = estadoMapa(n);
+      const enProceso = estado === 'produciendo';
+      const k = COLOR_MAPA[estado];
       const op = ops[0];
       const pct = op && op.uni ? Math.min(1, op.prod / op.uni) : 0;
       const x = cx - w / 2, y = cy - h / 2;
@@ -529,7 +556,7 @@
       return `<a href="#/m/${n}" class="mapa-maq">
         <g transform="rotate(${giro} ${cx} ${cy})">
           <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${k.c}" stroke="${k.b}" stroke-width="2"/>
-          ${enProceso ? `<rect x="${x + 4}" y="${y + h - 8}" width="${Math.max(3, (w - 8) * pct)}" height="4" rx="2" fill="#fff" opacity=".95"/>` : ''}
+          ${enProceso && h >= 25 ? `<rect x="${x + 4}" y="${y + h - 8}" width="${Math.max(3, (w - 8) * pct)}" height="4" rx="2" fill="#fff" opacity=".95"/>` : ''}
           ${ops.length > 1 ? `<circle cx="${x + w - 6}" cy="${y + 6}" r="4.5" fill="#fff" stroke="${k.b}"/>` : ''}
         </g>
         <text x="${cx}" y="${cy}" fill="${k.t}" transform="rotate(${textoGiro} ${cx} ${cy})">${n}</text>
@@ -537,7 +564,7 @@
     }).join('');
     const bloques = BLOQUES.map(([x, y, w, h, t]) =>
       `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" class="bloque"/><text x="${x + 14}" y="${y + 20}" class="zona">${t}</text>`).join('')
-      + `<text x="${PLANO_ANCHO / 2 - 30}" y="324" class="zona pasillo">PASILLO</text>`;
+;
     return `
       <div class="mapa-caja" id="mapa-caja">
         <svg id="mapa" viewBox="0 0 ${PLANO_ANCHO} ${PLANO_ALTO}" style="width:${E.zoomMapa ? E.zoomMapa * PLANO_ANCHO + 'px' : '100%'}">${bloques}${cajas}</svg>
@@ -548,11 +575,9 @@
         <button type="button" data-z="1" aria-label="Acercar">+</button>
       </div>
       <div class="leyenda">
-        <span><i style="--c:var(--verde)"></i>Produciendo (barra = avance)</span>
-        <span><i style="--c:var(--narciso)"></i>OP por arrancar</span>
-        <span><i class="libre"></i>Libre, sin OP</span>
-        <span><i class="blanco"></i>Más OP en cola</span>
+        ${Object.values(COLOR_MAPA).map(k => `<span><i style="--c:${k.c};border:1.5px solid ${k.b}"></i>${k.txt}</span>`).join('')}
       </div>
+      <div class="nota">Colores según el estatus de hoy en el Seguimiento de OP. Barra blanca = avance de la OP.</div>
       <div class="nota">Solo se muestran las máquinas operativas (${(E.datos.maquinas || []).filter(m => /^operativa$/i.test(m.est) && PLANO[m.n]).length}). Las demás están en Lista. Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
   }
 
@@ -638,6 +663,8 @@
         <div class="estado-g">${esc(m.est || '—')}</div>
         <div class="estado-p">${m.cap ? fmt(m.cap) + ' toneladas' : ''}${m.tipo ? `<br>Tipo ${esc(m.tipo)}` : ''}</div>
       </div>
+      ${E.datos.estadoMaq && E.datos.estadoMaq[n] ? (() => { const k = COLOR_MAPA[estadoMapa(n)]; const r = E.datos.estadoMaq[n];
+        return `<div class="tarjeta hoy-maq"><span class="tag" style="--c:${k.c};--t:${k.t};border:1.5px solid ${k.b}">${esc(r.est)}</span> <span>Estatus de hoy${r.prod ? ' · ' + esc(r.prod) : ''}</span></div>`; })() : ''}
 
       <div class="titulo">${st('tolva')} Órdenes en esta máquina</div>
       ${ops.length ? ops.map(o => {
