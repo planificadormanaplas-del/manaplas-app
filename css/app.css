@@ -5,11 +5,12 @@
   --azul-osc: #0E7FB3;
   --azul-claro: #E6F6FD;
   --lila: #7C5CFF;        /* Planificar */
-  --pizarra: #6B7A90;     /* Espera logística */
+  --pizarra: #7A8CA6;     /* Espera logística */
   --dorado: #F2A93B;      /* estrella */
-  --rojo: #D93B3B;
-  --naranja: #EE8A1C;
-  --verde: #2E9E5B;
+  --rojo: #F0384B;
+  --naranja: #FF6A3D;      /* coral, sin tono amarillo */
+  --verde: #00B86B;
+  --libre: #DCE6EF;       /* máquina operativa sin OP (mapa) */
   --tinta: #17212B;
   --tinta-2: #4F5B67;
   --tinta-3: #8A96A3;
@@ -312,3 +313,4 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
 .leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 4px 0; font-size: 12px; color: var(--tinta-2); }
 .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--c); margin-right: 5px; vertical-align: -2px; }
 .leyenda i.blanco { background: #fff; border: 2px solid var(--tinta-3); border-radius: 50%; width: 10px; height: 10px; }
+.leyenda i.libre { background: var(--libre); border: 1px solid #B9C7D6; }

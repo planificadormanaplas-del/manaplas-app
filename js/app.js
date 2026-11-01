@@ -495,18 +495,20 @@
   ];
 
   function mapaHtml() {
+    // Solo las máquinas que pueden operar. Color según lo que tienen: produciendo, OP por iniciar o libre.
     const cajas = Object.entries(PLANO).map(([n, [x, y, w, h]]) => {
       const m = E.porMaq[n];
-      const k = estMaq(m && m.est);
+      if (!m || !/^operativa$/i.test(m.est)) return '';
       const ops = E.opsPorMaq[n] || [];
       const enProceso = ops.some(o => !/pendiente/i.test(o.clas));
+      const k = enProceso ? { c: 'var(--verde)', t: '#fff' } : ops.length ? { c: 'var(--azul)', t: '#fff' } : { c: 'var(--libre)', t: '#4F5B67' };
       const vertical = h > w;
       const op = ops[0];
       const pct = op && op.uni ? Math.min(1, op.prod / op.uni) : 0;
       return `<a href="#/m/${n}" class="mapa-maq">
-        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${k.c}" opacity="${m ? 1 : .35}"/>
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${k.c}"/>
         ${enProceso ? `<rect x="${x + 2}" y="${y + h - 5}" width="${Math.max(2, (w - 4) * pct)}" height="3" rx="1.5" fill="#fff" opacity=".9"/>` : ''}
-        ${ops.length ? `<circle cx="${x + w - 5}" cy="${y + 5}" r="3.2" fill="#fff"/>` : ''}
+        ${ops.length > 1 ? `<circle cx="${x + w - 5}" cy="${y + 5}" r="3.2" fill="#fff"/>` : ''}
         <text x="${x + w / 2}" y="${y + h / 2}" class="${vertical ? 'v' : ''}" fill="${k.t}" transform="${vertical ? `rotate(-90 ${x + w / 2} ${y + h / 2})` : ''}">${n}</text>
       </a>`;
     }).join('');
@@ -521,13 +523,12 @@
         <button type="button" data-z="1" aria-label="Acercar">+</button>
       </div>
       <div class="leyenda">
-        <span><i style="--c:var(--verde)"></i>Operativa</span>
-        <span><i style="--c:var(--pizarra)"></i>Espera logística</span>
-        <span><i style="--c:var(--naranja)"></i>Intervención técnica</span>
-        <span><i style="--c:var(--rojo)"></i>Fuera de servicio</span>
-        <span><i class="blanco"></i>Con OP · barra = avance</span>
+        <span><i style="--c:var(--verde)"></i>Produciendo (barra = avance)</span>
+        <span><i style="--c:var(--azul)"></i>OP por iniciar</span>
+        <span><i class="libre"></i>Libre, sin OP</span>
+        <span><i class="blanco"></i>Más OP en cola</span>
       </div>
-      <div class="nota">Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
+      <div class="nota">Solo se muestran las máquinas operativas (${(E.datos.maquinas || []).filter(m => /^operativa$/i.test(m.est) && PLANO[m.n]).length}). Las demás están en Lista. Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
   }
 
   function pintarMaquinas() {
