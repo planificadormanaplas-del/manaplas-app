@@ -14,7 +14,16 @@ const ARCHIVOS = [
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'icons/apple-touch-icon.png'
+  'icons/apple-touch-icon.png',
+  'img/stickers/envase_manaplas.png',
+  'img/stickers/caja_producto.png',
+  'img/stickers/calendario.png',
+  'img/stickers/checklist.png',
+  'img/stickers/grafico_cumplimiento.png',
+  'img/stickers/mantenimiento.png',
+  'img/stickers/molde.png',
+  'img/stickers/saco_materia_prima.png',
+  'img/stickers/tolva.png'
 ];
 
 self.addEventListener('install', (e) => {
@@ -34,7 +43,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // la API va directo a internet
   const base = new URL('./', self.location).pathname;
   const ruta = url.pathname.startsWith(base) ? url.pathname.slice(base.length) : url.pathname;
-  const esDeLaApp = ruta === '' || ARCHIVOS.includes(ruta) || ruta.startsWith('icons/');
+  const esDeLaApp = ruta === '' || ARCHIVOS.includes(ruta) || ruta.startsWith('icons/') || ruta.startsWith('img/');
   if (!esDeLaApp) return;                                  // cualquier otra cosa: directo a la red
 
   // config.js: primero la red (así los teléfonos se enteran de versiones nuevas)

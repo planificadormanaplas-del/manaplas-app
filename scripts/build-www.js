@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path');
 const raiz = path.join(__dirname, '..');
 const destino = path.join(raiz, 'www');
-const incluir = ['index.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons'];
+const incluir = ['index.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'img'];
 
 fs.rmSync(destino, { recursive: true, force: true });
 fs.mkdirSync(destino);

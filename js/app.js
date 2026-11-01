@@ -81,6 +81,8 @@
   const tagClase = (a) => a ? `<span class="tag suave">${esc(a)}</span>` : '';
 
   const opAbierta = (p) => (p.ops || []).find(o => !o.cerrada);
+  // Stickers de Manaplas (img/stickers)
+  const st = (n, cls = 'st') => `<img class="${cls}" src="img/stickers/${n}.png" alt="">`;
 
   function avisar(msg, ms = 2600) {
     const el = document.getElementById('aviso');
@@ -188,8 +190,8 @@
   function pintarBienvenida() {
     $vista.innerHTML = `
       <div class="bienvenida">
-        <img src="icons/icon-192.png" alt="">
-        <h1>Manaplas · Planificación</h1>
+        <img src="img/stickers/envase_manaplas.png" alt="">
+        <h1>manaplas · Planificación</h1>
         <p>Inventario, órdenes de producción y MPS de cada producto.</p>
       </div>
       <form id="f-clave" class="tarjeta">
@@ -300,16 +302,16 @@
       const seg = E.seguimiento.map(c => E.porCod[c]).filter(Boolean);
       const pend = E.notas.filter(n => n.estado !== 'Resuelta').length;
       $res.innerHTML = `
-        <div class="titulo">☀️ Hoy</div>
+        <div class="titulo">${st('grafico_cumplimiento')} Hoy</div>
         <div class="resumen">
           <a class="cuenta" href="#/alertas" style="--c:var(--rojo)"><div class="cuenta-n num">${crit}</div><div class="cuenta-t">🚨 Críticos</div></a>
           <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t">🔥 Urgentes</div></a>
           <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t">🏭 Con OP</div></div>
         </div>
-        ${pend ? `<a class="tarjeta enlace-notas" href="#/notas">📝 <b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
+        ${pend ? `<a class="tarjeta enlace-notas" href="#/notas">${st('checklist', 'st-mini')} <b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
         ${seg.length ? `<div class="titulo">⭐ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
         ${rec.length ? `<div class="titulo">🕘 Vistos recientemente</div><div class="lista">${rec.map(itemHtml).join('')}</div>`
-                     : `<div class="vacio"><b>🔎 Busca un producto</b>Escribe el código (ej. 6825) o parte del nombre (ej. silla blanco).</div>`}`;
+                     : `<div class="vacio">${st('caja_producto', 'st-grande')}<b>Busca un producto</b>Escribe el código (ej. 6825) o parte del nombre (ej. silla blanco).</div>`}`;
       return;
     }
 
@@ -360,22 +362,22 @@
       </div>
 
       <div class="datos">
-        <div class="dato"><div class="dato-t">Inventario hoy</div><div class="dato-v num">${fmt(p.inv)}</div><div class="dato-s">Inv Query</div></div>
+        <div class="dato"><div class="dato-t">${st('caja_producto', 'st-mini')} Inventario hoy</div><div class="dato-v num">${fmt(p.inv)}</div><div class="dato-s">Inv Query</div></div>
         <div class="dato"><div class="dato-t">Corte del mes</div><div class="dato-v num">${p.corte ? fmt(p.corte.v) : '—'}</div><div class="dato-s">${p.corte ? esc(p.corte.mes) : 'Sin corte'}</div></div>
         <div class="dato"><div class="dato-t">Meses de inventario</div><div class="dato-v num">${p.mi != null ? fmt(Math.floor(p.mi)) : '—'}</div><div class="dato-s">Cobertura MPS: ${p.cob ? fmt(p.cob) + ' meses' : '—'}</div></div>
-        <div class="dato"><div class="dato-t">Venta promedio / mes</div><div class="dato-v num">${fmt(p.pv)}</div><div class="dato-s">SS ${fmt(p.ss)} · Objetivo ${fmt(p.so)}</div></div>
+        <div class="dato"><div class="dato-t">${st('grafico_cumplimiento', 'st-mini')} Venta promedio / mes</div><div class="dato-v num">${fmt(p.pv)}</div><div class="dato-s">SS ${fmt(p.ss)} · Objetivo ${fmt(p.so)}</div></div>
       </div>
 
-      <div class="titulo">🏭 Órdenes de producción</div>
+      <div class="titulo">${st('tolva')} Órdenes de producción</div>
       ${abiertas.length ? abiertas.map(opHtml).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
       ${cerradas.length ? `<div class="tarjeta cerradas" style="margin-top:8px">
           ${cerradas.map(o => `<div class="cerrada"><div><b>${esc(o.op)}</b> · Máq ${esc(o.maq)}<br><span>${o.fin ? 'Cerró ' + fechaCorta(o.fin) : esc(o.clas)}</span></div><div class="num" style="text-align:right">${fmt(o.buenas)}<br><span>buenas</span></div></div>`).join('')}
         </div>` : ''}
 
-      <div class="titulo">🧩 Piezas y máquinas</div>
+      <div class="titulo">${st('molde')} Piezas y máquinas</div>
       ${piezasHtml(p)}
 
-      <div class="titulo">📅 MPS</div>
+      <div class="titulo">${st('calendario')} MPS</div>
       ${mpsHtml(p)}
     `;
 
@@ -482,6 +484,7 @@
     const grupos = {};
     lista.forEach(m => { (grupos[m.lin || 'Otras'] = grupos[m.lin || 'Otras'] || []).push(m); });
     $vista.innerHTML = `
+      <div class="cabecera">${st('mantenimiento', 'st-grande')}<div><b>Máquinas</b><span>Estatus, lo que tienen montado y qué cabe en cada una</span></div></div>
       <div class="chips" style="margin:0 0 4px">
         ${Object.entries(filtros).map(([k, t]) => `<button class="chip ${E.filtroMaq === k ? 'on' : ''}" data-f="${k}" type="button">${t}</button>`).join('')}
       </div>
@@ -536,13 +539,13 @@
         <div class="estado-p">${m.cap ? fmt(m.cap) + ' toneladas' : ''}${m.tipo ? `<br>Tipo ${esc(m.tipo)}` : ''}</div>
       </div>
 
-      <div class="titulo">🏭 Órdenes en esta máquina</div>
+      <div class="titulo">${st('tolva')} Órdenes en esta máquina</div>
       ${ops.length ? ops.map(o => {
         const p = E.porCod[o.cod];
         return `<a href="#/p/${encodeURIComponent(o.cod)}" class="enlace-op">${opHtml(o, p ? p.n : o.cod)}</a>`;
       }).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
 
-      <div class="titulo">🎯 Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
+      <div class="titulo">${st('molde')} Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
       ${candidatos.length ? `<div class="lista">${candidatos.slice(0, 40).map(({ p, z }) =>
         itemHtml(p).replace('<div class="item-nom">', `<div class="item-pieza">${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</div><div class="item-nom">`)).join('')}</div>`
         : `<div class="vacio">Ningún producto crítico o urgente sin OP tiene piezas para esta máquina.</div>`}`;
@@ -635,7 +638,7 @@
     });
     $r.innerHTML = l.length
       ? `<div class="titulo">${l.length} nota${l.length === 1 ? '' : 's'}</div><div class="notas-lista">${l.map(n => notaHtml(n, false)).join('')}</div>`
-      : `<div class="vacio"><b>${E.notas.length ? 'Sin notas con ese filtro' : '📝 Tu libreta está vacía'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
+      : `<div class="vacio">${st('checklist', 'st-grande')}<b>${E.notas.length ? 'Sin notas con ese filtro' : 'Tu libreta está vacía'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
   }
 
   function pintarEditorNota(id, q) {
@@ -648,7 +651,7 @@
         <button class="volver" type="button" aria-label="Volver" onclick="history.back()">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <div class="ficha-tit"><div class="ficha-nom">${existente ? '✏️ Editar nota' : '📝 Nueva nota'}</div>
+        <div class="ficha-tit"><div class="ficha-nom">${st('checklist')} ${existente ? 'Editar nota' : 'Nueva nota'}</div>
           ${existente ? `<div class="ficha-cod">${fechaHora(n.fecha)} · ${esc(n.autor || '')}</div>` : ''}</div>
       </div>
       <form id="f-nota" class="tarjeta" style="margin-top:14px">
@@ -761,9 +764,9 @@
     if (!E.datos) { $vista.innerHTML = `<div class="vacio"><b>Sin datos todavía</b></div>`; return; }
     const a = alertas();
     $vista.innerHTML = `
-      <div class="nota" style="margin-top:0">Productos activos en crítico o urgente que <b>no tienen OP abierta</b>, en orden de ranking.</div>
+      <div class="cabecera">${st('saco_materia_prima', 'st-grande')}<div><b>Alertas</b><span>Activos en crítico o urgente que <b>no tienen OP abierta</b>, en orden de ranking.</span></div></div>
       <div class="titulo">🚨 Críticos · ${a.crit.length}</div>
-      ${a.crit.length ? `<div class="lista">${a.crit.map(itemHtml).join('')}</div>` : `<div class="vacio">Ninguno 🎉</div>`}
+      ${a.crit.length ? `<div class="lista">${a.crit.map(itemHtml).join('')}</div>` : `<div class="vacio">${st('checklist', 'st-grande')}<b>Ninguno 🎉</b></div>`}
       <div class="titulo">🔥 Urgentes · ${a.urg.length}</div>
       ${a.urg.length ? `<div class="lista">${a.urg.map(itemHtml).join('')}</div>` : `<div class="vacio">Ninguno</div>`}`;
   }
