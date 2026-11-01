@@ -8,8 +8,16 @@
  *
  * Lecturas (GET):
  *   <URL /exec>?api=ping                      -> estado (sin clave)
- *   <URL /exec>?api=datos&clave=XXXX           -> todos los productos (desde caché)
+ *   <URL /exec>?api=datos&clave=XXXX           -> productos, piezas y máquinas (desde caché)
  *   <URL /exec>?api=datos&clave=XXXX&fresco=1  -> fuerza a recalcular
+ *   <URL /exec>?api=notas&clave=XXXX           -> todas las notas
+ *
+ * Escrituras (POST, cuerpo JSON como texto):
+ *   { "accion": "guardarNota", "clave": "...", "nota": { id, fecha, autor, etiqueta, producto, maquina, texto, estado } }
+ *   (si el id ya existe, la actualiza; si no, la agrega)
+ *
+ * Las notas se guardan en la hoja "Notas" del archivo "App Manaplas · Registros",
+ * que la API crea sola la primera vez (en el Drive de la cuenta que la implementó).
  *
  * Respuesta: { ok:true, version, data } o { ok:false, error }
  *
@@ -21,11 +29,16 @@
  *        Ejecutar como: Yo   ·   Acceso: Cualquier persona
  */
 
-const VERSION_API = '1.0.0';
+const VERSION_API = '1.1.0';
 
 // Archivos fuente
 const ID_MPS = '12jKC01EUcIg9bpTMJ6i3MzBrBrgYiv8g1EYES3PF4Mo';        // MPS
 const ID_SEGUIMIENTO = '1ypAmmdEtWpYUEHPN8kdCbVHV9ZtDqJfTdTJp8kVTyEs'; // Seguimiento de OP
+const ID_BD = '1koJFsuSpleLc1xCc8RnfZFzQyQGj_xlgwmgr0NUGMlM';          // Base de Datos Planificación
+
+// Notas
+const ENC_NOTAS = ['ID', 'Fecha', 'Autor', 'Etiqueta', 'Producto', 'Máquina', 'Nota', 'Estado', 'Actualizado'];
+const ETIQUETAS = ['General', 'Color', 'Molde', 'Material', 'Inventario', 'Producción', 'Máquina'];
 
 // Estructura de la hoja MPS: bloques de 6 filas desde la fila 11, meses en I (jun-2026) .. AA (dic-2027)
 const MPS_RANGO = 'A11:AA2422';
@@ -53,7 +66,19 @@ function doGet(e) {
         .createTextOutput('{"ok":true,"version":"' + VERSION_API + '","data":' + txt + '}')
         .setMimeType(ContentService.MimeType.JSON);
     }
+    if (p.api === 'notas') return salida_({ ok: true, version: VERSION_API, data: leerNotas_() });
     return salida_({ ok: false, error: 'Consulta desconocida: ' + p.api });
+  } catch (err) {
+    return salida_({ ok: false, error: String(err && err.message || err) });
+  }
+}
+
+function doPost(e) {
+  try {
+    const b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (!claveValida_(b.clave)) return salida_({ ok: false, error: 'Clave incorrecta' });
+    if (b.accion === 'guardarNota') return salida_({ ok: true, version: VERSION_API, data: guardarNota_(b.nota || {}) });
+    return salida_({ ok: false, error: 'Acción desconocida: ' + b.accion });
   } catch (err) {
     return salida_({ ok: false, error: String(err && err.message || err) });
   }
@@ -125,6 +150,28 @@ function construirDatos_() {
   const cortes = hoja_(libroMps, 'Inventario MPS').getDataRange().getValues();
   const mps = hoja_(libroMps, 'MPS').getRange(MPS_RANGO).getValues();
   const ops = hoja_(SpreadsheetApp.openById(ID_SEGUIMIENTO), 'Resumen de OP').getDataRange().getValues();
+  const libroBd = SpreadsheetApp.openById(ID_BD);
+  const comp = hoja_(libroBd, 'Componentes').getRange('A1:N').getValues();
+  const maqs = hoja_(libroBd, 'Maquinas/Producto').getRange('A1:F').getValues();
+
+  // --- Máquinas (Base de Datos: A N°, B categoría, C capacidad, D tipo, E ubicación, F estatus)
+  const maquinas = maqs.slice(1).filter(r => txt_(r[0])).map(r => ({
+    n: txt_(r[0]), cat: txt_(r[1]), cap: typeof r[2] === 'number' ? r[2] : null,
+    tipo: txt_(r[3]), lin: txt_(r[4]), est: txt_(r[5])
+  }));
+
+  // --- Piezas por producto base (Componentes: B cód. pieza, C sku, D parte, E nombre, J MP, K peso, L ton, M ciclo, N cavidades)
+  const piezasPorBase = {};
+  comp.slice(1).forEach(r => {
+    const cp = txt_(r[1]); if (!cp) return;
+    const base = txt_(r[2]).slice(0, 4) || cp.slice(0, 4);
+    const ton = txt_(r[11]);
+    (piezasPorBase[base] = piezasPorBase[base] || []).push({
+      cod: cp, parte: txt_(r[3]), nom: txt_(r[4]), mp: txt_(r[9]),
+      peso: num_(r[10]), ton: ton, ciclo: num_(r[12]), cav: num_(r[13]),
+      maq: maquinasCompatibles_(ton, maquinas)
+    });
+  });
 
   // --- Meses a mostrar (desde el mes en curso)
   const hoy = new Date();
@@ -174,6 +221,7 @@ function construirDatos_() {
 
   // --- OP (Resumen de OP)
   const opsPorCod = {};
+  const opsAbiertas = [];
   ops.slice(1).forEach(r => {
     const cod = txt_(r[2]); if (!cod) return;
     const op = {
@@ -184,6 +232,7 @@ function construirDatos_() {
       _orden: r[5] instanceof Date ? r[5].getTime() : 0
     };
     (opsPorCod[cod] = opsPorCod[cod] || []).push(op);
+    if (!op.cerrada) { const a = Object.assign({}, op); delete a._orden; opsAbiertas.push(a); }
   });
   const opsDe = (cod) => {
     const base = cod.split('-')[0];
@@ -227,8 +276,99 @@ function construirDatos_() {
   return {
     generado: new Date().toISOString(),
     meses: meses,
-    productos: productos
+    productos: productos,
+    maquinas: maquinas,
+    opsAbiertas: opsAbiertas,
+    piezas: piezasPorBase          // piezas por código base (4 primeros dígitos del producto)
   };
+}
+
+/** Regla de tonelaje: la pieza va en máquinas de su misma centena y nunca en una más pequeña.
+ *  300 -> 300, 310 · 400 -> 440, 450 · 500 -> 550, 580 · 220 -> 220, 225.
+ *  "SOP" -> sopladoras. Sin dato o fuera de rango -> lista vacía (consultar con Moldes). */
+function maquinasCompatibles_(ton, maquinas) {
+  const t = String(ton || '').trim().toUpperCase();
+  if (/^SOP/.test(t)) return maquinas.filter(m => /sopladora/i.test(m.cat)).map(m => m.n);
+  const n = Number(t);
+  if (!t || isNaN(n) || n <= 0) return [];
+  return maquinas
+    .filter(m => /inyectora/i.test(m.cat) && m.cap && m.cap >= n && Math.floor(m.cap / 100) === Math.floor(n / 100))
+    .map(m => m.n);
+}
+
+// ============================================================ Notas
+
+function hojaNotas_() {
+  const props = PropertiesService.getScriptProperties();
+  let libro = null;
+  const id = props.getProperty('ID_REGISTROS');
+  if (id) { try { libro = SpreadsheetApp.openById(id); } catch (e) { libro = null; } }
+  if (!libro) {
+    libro = SpreadsheetApp.create('App Manaplas · Registros');
+    props.setProperty('ID_REGISTROS', libro.getId());
+  }
+  let h = libro.getSheetByName('Notas');
+  if (!h) {
+    h = libro.getSheets().length === 1 && libro.getSheets()[0].getLastRow() === 0
+      ? libro.getSheets()[0].setName('Notas') : libro.insertSheet('Notas');
+    h.getRange(1, 1, 1, ENC_NOTAS.length).setValues([ENC_NOTAS]).setFontWeight('bold').setBackground('#1BACEE').setFontColor('#FFFFFF');
+    h.setFrozenRows(1);
+    h.setColumnWidth(7, 420);
+  }
+  return h;
+}
+
+function leerNotas_() {
+  const h = hojaNotas_();
+  const n = h.getLastRow() - 1;
+  if (n < 1) return [];
+  const tz = Session.getScriptTimeZone();
+  const iso = (v) => v instanceof Date ? Utilities.formatDate(v, tz, "yyyy-MM-dd'T'HH:mm:ssXXX") : txt_(v);
+  return h.getRange(2, 1, n, ENC_NOTAS.length).getValues()
+    .filter(r => txt_(r[0]))
+    .map(r => ({
+      id: txt_(r[0]), fecha: iso(r[1]), autor: txt_(r[2]), etiqueta: txt_(r[3]),
+      producto: txt_(r[4]), maquina: txt_(r[5]), texto: txt_(r[6]), estado: txt_(r[7]) || 'Pendiente',
+      actualizado: iso(r[8])
+    }))
+    .sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+}
+
+function guardarNota_(nota) {
+  const id = txt_(nota.id);
+  const texto = txt_(nota.texto).slice(0, 4000);
+  if (!id || !texto) throw new Error('La nota necesita id y texto.');
+  const fila = [
+    id,
+    nota.fecha ? new Date(nota.fecha) : new Date(),
+    txt_(nota.autor).slice(0, 80),
+    ETIQUETAS.indexOf(nota.etiqueta) >= 0 ? nota.etiqueta : 'General',
+    txt_(nota.producto).slice(0, 20),
+    txt_(nota.maquina).slice(0, 10),
+    texto,
+    nota.estado === 'Resuelta' ? 'Resuelta' : 'Pendiente',
+    new Date()
+  ];
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const h = hojaNotas_();
+    const encontrada = h.getLastRow() > 1
+      ? h.getRange(2, 1, h.getLastRow() - 1, 1).createTextFinder(id).matchEntireCell(true).findNext()
+      : null;
+    if (encontrada) h.getRange(encontrada.getRow(), 1, 1, fila.length).setValues([fila]);
+    else h.appendRow(fila);
+  } finally {
+    lock.releaseLock();
+  }
+  return { id: id, guardada: new Date().toISOString() };
+}
+
+/** Prueba desde el editor: crea (o abre) el archivo de notas y muestra su enlace. */
+function probarNotas() {
+  const h = hojaNotas_();
+  Logger.log('Archivo de notas: ' + h.getParent().getUrl());
+  Logger.log('Notas guardadas: ' + leerNotas_().length);
 }
 
 // ============================================================ Utilidades
@@ -260,5 +400,7 @@ function probar() {
   const d = construirDatos_();
   Logger.log('Productos: ' + d.productos.length + ' · ' + (Date.now() - t) + ' ms · ' +
     Math.round(JSON.stringify(d).length / 1024) + ' KB');
-  Logger.log(JSON.stringify(d.productos.find(p => p.c === '7090-0') || d.productos[0], null, 2));
+  Logger.log('Máquinas: ' + d.maquinas.length + ' · OP abiertas: ' + d.opsAbiertas.length);
+  const ej = d.productos.find(p => p.c.indexOf('6535') === 0) || d.productos[0];
+  Logger.log(JSON.stringify({ c: ej.c, n: ej.n, piezas: d.piezas[ej.c.slice(0, 4)] }, null, 2));
 }

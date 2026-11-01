@@ -1,6 +1,6 @@
 {
   "name": "manaplas-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Manaplas · Planificación — app de planta (web instalable + APK Android)",
   "scripts": {

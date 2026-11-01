@@ -13,7 +13,21 @@
     clase: '',            // filtro de clase (A, B, C)
     cargando: false,
     errorSync: null,
-    versionApi: null
+    versionApi: null,
+    porMaq: {},           // número de máquina -> máquina
+    opsPorMaq: {},        // número de máquina -> OP abiertas
+    notas: [],            // notas (las del servidor + las que faltan por enviar)
+    cola: [],             // notas pendientes por enviar (sin señal)
+    notasHora: 0,         // última vez que se bajaron las notas
+    autor: 'Reysecoello · Planificador Junior',
+    filtroMaq: 'todas',
+    filtroNotas: 'Pendiente',
+    textoNotas: ''
+  };
+  const ETIQUETAS = ['General', 'Color', 'Molde', 'Material', 'Inventario', 'Producción', 'Máquina'];
+  const COLOR_ETIQ = {
+    General: 'var(--tinta-3)', Color: '#8E44AD', Molde: 'var(--naranja)', Material: '#6D4C41',
+    Inventario: 'var(--azul)', 'Producción': 'var(--verde)', 'Máquina': 'var(--rojo)'
   };
   const VIEJO_MIN = 30;   // minutos a partir de los cuales los datos se marcan como viejos
   const AUTO_MIN = 10;    // al volver a la app, se actualiza si los datos tienen más de esto
@@ -80,10 +94,18 @@
   function usarDatos(d) {
     E.datos = d;
     E.porCod = {};
+    const piezas = d.piezas || {};
     (d.productos || []).forEach(p => {
+      p.pz = piezas[String(p.c).slice(0, 4)] || [];
       p._busca = norm(p.c + ' ' + p.c.replace('-', '') + ' ' + p.n);
       E.porCod[p.c] = p;
     });
+    E.porMaq = {};
+    (d.maquinas || []).forEach(m => { E.porMaq[m.n] = m; });
+    E.opsPorMaq = {};
+    (d.opsAbiertas || []).forEach(o => { (E.opsPorMaq[o.maq] = E.opsPorMaq[o.maq] || []).push(o); });
+    // En proceso primero, luego pendientes por iniciar
+    Object.values(E.opsPorMaq).forEach(l => l.sort((a, b) => (/pendiente/i.test(a.clas) ? 1 : 0) - (/pendiente/i.test(b.clas) ? 1 : 0)));
   }
 
   async function sincronizar(fresco = false) {
@@ -96,7 +118,7 @@
       await DB.set('datos', r.data);
       await DB.set('versionApi', r.version);
       if (fresco) avisar('Datos actualizados');
-      repintar();
+      repintar({ fondo: true });
     } catch (e) {
       E.errorSync = e.message;
       if (/clave/i.test(e.message)) {
@@ -124,20 +146,27 @@
 
   function ruta() {
     const h = location.hash.replace(/^#\/?/, '');
-    const [vista, ...resto] = h.split('/');
-    return { vista: vista || 'buscar', arg: decodeURIComponent(resto.join('/')) };
+    const [camino, consulta] = h.split('?');
+    const [vista, ...resto] = camino.split('/');
+    return { vista: vista || 'buscar', arg: decodeURIComponent(resto.join('/')), q: new URLSearchParams(consulta || '') };
   }
 
-  function repintar() {
+  function repintar(op = {}) {
     if (!E.clave) { pintarBienvenida(); marcarNav(''); return; }
-    const { vista, arg } = ruta();
+    const { vista, arg, q } = ruta();
+    // Una actualización en segundo plano nunca borra lo que se está escribiendo
+    if (op.fondo && (vista === 'nota' || vista === 'ajustes')) { pintarBadge(); pintarSync(); return; }
     const yScroll = window.scrollY;
     if (vista === 'p') pintarFicha(arg);
+    else if (vista === 'm') pintarMaquina(arg);
+    else if (vista === 'maquinas') pintarMaquinas();
+    else if (vista === 'notas') pintarNotas(q);
+    else if (vista === 'nota') pintarEditorNota(arg, q);
     else if (vista === 'alertas') pintarAlertas();
     else if (vista === 'seguimiento') pintarSeguimiento();
     else if (vista === 'ajustes') pintarAjustes();
     else pintarBuscar(true);
-    marcarNav(vista === 'p' ? '' : vista);
+    marcarNav({ p: '', m: 'maquinas', nota: 'notas', seguimiento: 'buscar' }[vista] ?? vista);
     pintarBadge();
     pintarSync();
     if (repintar.mismaVista === location.hash) window.scrollTo(0, yScroll);
@@ -149,7 +178,6 @@
   }
 
   window.addEventListener('hashchange', () => {
-    document.getElementById('aviso').hidden = true;
     window.scrollTo(0, 0);
     repintar();
   });
@@ -186,6 +214,7 @@
         await DB.set('versionApi', r.version);
         location.hash = '#/buscar';
         repintar();
+        bajarNotas();
       } catch (e) {
         err.textContent = e.message; err.hidden = false;
         btn.disabled = false; btn.textContent = 'Entrar';
@@ -267,6 +296,8 @@
       const urgte = n(p => /URGENTE/i.test(p.u || ''));
       const enProd = n(p => !!opAbierta(p));
       const rec = E.recientes.map(c => E.porCod[c]).filter(Boolean);
+      const seg = E.seguimiento.map(c => E.porCod[c]).filter(Boolean);
+      const pend = E.notas.filter(n => n.estado !== 'Resuelta').length;
       $res.innerHTML = `
         <div class="titulo">Hoy</div>
         <div class="resumen">
@@ -274,6 +305,8 @@
           <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t">Urgentes</div></a>
           <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t">Con OP abierta</div></div>
         </div>
+        ${pend ? `<a class="tarjeta enlace-notas" href="#/notas"><b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
+        ${seg.length ? `<div class="titulo">★ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
         ${rec.length ? `<div class="titulo">Vistos recientemente</div><div class="lista">${rec.map(itemHtml).join('')}</div>`
                      : `<div class="vacio"><b>Busca un producto</b>Escribe el código (ej. 6825) o parte del nombre (ej. silla blanco).</div>`}`;
       return;
@@ -338,6 +371,12 @@
           ${cerradas.map(o => `<div class="cerrada"><div><b>${esc(o.op)}</b> · Máq ${esc(o.maq)}<br><span>${o.fin ? 'Cerró ' + fechaCorta(o.fin) : esc(o.clas)}</span></div><div class="num" style="text-align:right">${fmt(o.buenas)}<br><span>buenas</span></div></div>`).join('')}
         </div>` : ''}
 
+      <div class="titulo">Piezas y máquinas</div>
+      ${piezasHtml(p)}
+
+      <div class="titulo titulo-accion">Notas <a href="#/nota/nueva?prod=${encodeURIComponent(p.c)}">+ Agregar</a></div>
+      ${notasCortasHtml(n => n.producto === p.c, 'Sin notas de este producto.')}
+
       <div class="titulo">MPS</div>
       ${mpsHtml(p)}
     `;
@@ -352,13 +391,13 @@
     });
   }
 
-  function opHtml(o) {
+  function opHtml(o, titulo) {
     const pct = o.uni ? Math.min(100, Math.round(o.prod / o.uni * 100)) : 0;
     const faltan = Math.max(0, o.uni - o.prod);
     return `
       <div class="tarjeta">
         <div class="op-cab">
-          <div><div class="op-maq">Máquina ${esc(o.maq)}</div><div class="op-num">OP ${esc(o.op)}</div></div>
+          <div><div class="op-maq">${titulo ? esc(titulo) : 'Máquina ' + esc(o.maq)}</div><div class="op-num">${titulo ? esc(o.cod) + ' · ' : ''}OP ${esc(o.op)}</div></div>
           <span class="tag ${/pendiente/i.test(o.clas) ? 'suave' : 'op'}">${esc(o.clas || 'Abierta')}</span>
         </div>
         <div class="barra-av ${pct >= 100 ? 'full' : ''}"><i style="width:${pct}%"></i></div>
@@ -390,6 +429,335 @@
       <div class="nota">Inicial = corte real si el mes tiene corte cargado; si no, el final proyectado del mes anterior. "+" = producción planificada.</div>`;
   }
 
+  // ============================================================ Piezas y máquinas
+
+  const EST_MAQ = {
+    'operativa': { c: 'var(--verde)', t: '#fff' },
+    'espera logística': { c: 'var(--amarillo)', t: '#17212B' },
+    'intervención técnica': { c: 'var(--naranja)', t: '#fff' },
+    'fuera de servicio': { c: 'var(--rojo)', t: '#fff' }
+  };
+  const estMaq = (s) => EST_MAQ[String(s || '').toLowerCase()] || { c: 'var(--tinta-3)', t: '#fff' };
+  const tagMaq = (m) => { const k = estMaq(m.est); return `<span class="tag" style="--c:${k.c};--t:${k.t}">${esc(m.est || '—')}</span>`; };
+  const corto = (comp) => String(comp || '').replace(/^\S+-\d\/\d+-/, '');   // "6535-0/0-Matero 35" -> "Matero 35"
+
+  // ¿Qué máquina tiene montada esta pieza ahora?
+  function maquinaDePieza(cod) {
+    for (const [maq, ops] of Object.entries(E.opsPorMaq)) {
+      if (ops.some(o => String(o.comp || '').startsWith(cod + '-') || o.comp === cod)) return maq;
+    }
+    return null;
+  }
+
+  function piezasHtml(p) {
+    const pz = p.pz || [];
+    if (!pz.length) return `<div class="tarjeta" style="color:var(--tinta-2)">Este producto no tiene piezas cargadas en Componentes (Base de Datos Planificación).</div>`;
+    return pz.map(z => {
+      const ahora = maquinaDePieza(z.cod);
+      const valido = z.maq && z.maq.length;
+      const chips = valido ? z.maq.map(n => {
+        const m = E.porMaq[n] || { n, est: '' };
+        const k = estMaq(m.est);
+        return `<a class="maq-chip ${ahora === n ? 'aqui' : ''}" href="#/m/${encodeURIComponent(n)}" style="--c:${k.c}" title="${esc(m.est)}">${esc(n)}</a>`;
+      }).join('') : '';
+      return `
+        <div class="tarjeta pieza">
+          <div class="pieza-cab">
+            <div><b>${esc(z.cod)}</b> · ${esc(z.parte || z.nom)}</div>
+            <span class="tag ${valido ? 'op' : 'suave'}">${z.ton ? esc(z.ton) + (/^\d+$/.test(z.ton) ? ' t' : '') : 'sin ton'}</span>
+          </div>
+          <div class="pieza-det">${[z.cav ? `${fmt(z.cav)} cav` : '', z.ciclo ? `ciclo ${fmt(z.ciclo)} s` : '', z.peso ? `${String(z.peso).replace('.', ',')} g` : '', z.mp].filter(Boolean).join(' · ')}</div>
+          ${valido ? `<div class="maq-chips">${chips}</div>` : `<div class="aviso-dato">Tonelaje sin dato válido: consultar con Moldes.</div>`}
+          ${ahora ? `<div class="pieza-ahora">● Montada ahora en la ${esc(ahora)}</div>` : ''}
+        </div>`;
+    }).join('') + `<div class="nota">Máquinas de la misma centena de tonelaje y nunca más pequeñas que la pieza. Verde = operativa · amarillo = espera logística · naranja = intervención · rojo = fuera de servicio.</div>`;
+  }
+
+  // ============================================================ Pantalla: máquinas
+
+  function pintarMaquinas() {
+    if (!E.datos || !E.datos.maquinas) { $vista.innerHTML = `<div class="vacio"><b>Sin datos de máquinas</b>Actualiza los datos (la API debe ser versión 1.1 o más).</div>`; return; }
+    const filtros = { todas: 'Todas', libres: 'Operativas sin OP', paradas: 'No operativas' };
+    let lista = E.datos.maquinas;
+    if (E.filtroMaq === 'libres') lista = lista.filter(m => /operativa/i.test(m.est) && !(E.opsPorMaq[m.n] || []).length);
+    if (E.filtroMaq === 'paradas') lista = lista.filter(m => !/^operativa$/i.test(m.est));
+    const grupos = {};
+    lista.forEach(m => { (grupos[m.lin || 'Otras'] = grupos[m.lin || 'Otras'] || []).push(m); });
+    $vista.innerHTML = `
+      <div class="chips" style="margin:0 0 4px">
+        ${Object.entries(filtros).map(([k, t]) => `<button class="chip ${E.filtroMaq === k ? 'on' : ''}" data-f="${k}" type="button">${t}</button>`).join('')}
+      </div>
+      ${Object.entries(grupos).map(([lin, ms]) => `
+        <div class="titulo">${esc(lin)} · ${ms.length}</div>
+        <div class="lista">${ms.map(maqItemHtml).join('')}</div>`).join('') || `<div class="vacio">Ninguna máquina con ese filtro.</div>`}`;
+    $vista.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => { E.filtroMaq = b.dataset.f; pintarMaquinas(); }));
+  }
+
+  function maqItemHtml(m) {
+    const k = estMaq(m.est);
+    const ops = E.opsPorMaq[m.n] || [];
+    const op = ops[0];
+    const pct = op && op.uni ? Math.min(100, Math.round(op.prod / op.uni * 100)) : 0;
+    return `
+      <a class="item maq-item" href="#/m/${encodeURIComponent(m.n)}" style="--c:${k.c}">
+        <div class="maq-num"><b>${esc(m.n)}</b><span>${m.cap ? fmt(m.cap) + ' t' : esc(m.tipo)}</span></div>
+        <div class="item-txt">
+          <div class="item-cod">${tagMaq(m)} ${ops.length > 1 ? `<span class="tag suave">+${ops.length - 1} en cola</span>` : ''}</div>
+          <div class="item-nom">${op ? esc(corto(op.comp) || op.cod) : '<span style="color:var(--tinta-3)">Sin OP abierta</span>'}</div>
+          ${op ? `<div class="mini-av"><i style="width:${pct}%"></i></div>` : ''}
+        </div>
+        ${op ? `<div class="item-der"><div class="item-inv num">${pct}%</div><div class="item-und">${/pendiente/i.test(op.clas) ? 'por iniciar' : 'avance'}</div></div>` : ''}
+      </a>`;
+  }
+
+  function pintarMaquina(n) {
+    const m = E.porMaq[n];
+    if (!m) { $vista.innerHTML = `<div class="vacio"><b>No encuentro la máquina ${esc(n)}</b><a href="#/maquinas" style="color:var(--azul)">Ver máquinas</a></div>`; return; }
+    const ops = E.opsPorMaq[n] || [];
+    // Productos crítico/urgente sin OP con alguna pieza compatible con esta máquina
+    const candidatos = [];
+    E.datos.productos.forEach(p => {
+      if (!(p.est === 'Act' || !p.est) || opAbierta(p) || !/CR[IÍ]TICO|URGENTE/i.test(p.u || '')) return;
+      const z = (p.pz || []).find(z => (z.maq || []).includes(n));
+      if (z) candidatos.push({ p, z });
+    });
+    candidatos.sort((a, b) => (/CR[IÍ]TICO/i.test(b.p.u) - /CR[IÍ]TICO/i.test(a.p.u)) || ((a.p.r || 1e9) - (b.p.r || 1e9)));
+    const k = estMaq(m.est);
+    $vista.innerHTML = `
+      <div class="ficha-top">
+        <button class="volver" type="button" aria-label="Volver" onclick="history.length > 1 ? history.back() : (location.hash = '#/maquinas')">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="ficha-tit">
+          <div class="ficha-cod">${esc(m.cat)} · ${esc(m.lin)}</div>
+          <div class="ficha-nom">Máquina ${esc(m.n)}</div>
+        </div>
+      </div>
+      <div class="estado" style="--c:${k.c};--t:${k.t}">
+        <div class="estado-g">${esc(m.est || '—')}</div>
+        <div class="estado-p">${m.cap ? fmt(m.cap) + ' toneladas' : ''}${m.tipo ? `<br>Tipo ${esc(m.tipo)}` : ''}</div>
+      </div>
+
+      <div class="titulo">Órdenes en esta máquina</div>
+      ${ops.length ? ops.map(o => {
+        const p = E.porCod[o.cod];
+        return `<a href="#/p/${encodeURIComponent(o.cod)}" class="enlace-op">${opHtml(o, p ? p.n : o.cod)}</a>`;
+      }).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
+
+      <div class="titulo">Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
+      ${candidatos.length ? `<div class="lista">${candidatos.slice(0, 40).map(({ p, z }) =>
+        itemHtml(p).replace('<div class="item-nom">', `<div class="item-pieza">${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</div><div class="item-nom">`)).join('')}</div>`
+        : `<div class="vacio">Ningún producto crítico o urgente sin OP tiene piezas para esta máquina.</div>`}
+
+      <div class="titulo titulo-accion">Notas <a href="#/nota/nueva?maq=${encodeURIComponent(m.n)}">+ Agregar</a></div>
+      ${notasCortasHtml(x => x.maquina === m.n, 'Sin notas de esta máquina.')}`;
+  }
+
+  // ============================================================ Notas
+
+  const nuevoId = () => 'N' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const fechaHora = (iso) => {
+    const d = new Date(iso); if (isNaN(d)) return '';
+    return `${d.getDate()} ${MESES[d.getMonth()]} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const tagEtiq = (e) => `<span class="tag" style="--c:${COLOR_ETIQ[e] || 'var(--tinta-3)'}">${esc(e || 'General')}</span>`;
+
+  function notaHtml(n, compacta) {
+    const p = n.producto && E.porCod[n.producto];
+    const pendienteEnvio = E.cola.some(x => x.id === n.id);
+    return `
+      <div class="tarjeta nota-card ${n.estado === 'Resuelta' ? 'resuelta' : ''}" data-id="${esc(n.id)}">
+        <div class="nota-cab">
+          ${tagEtiq(n.etiqueta)}
+          <span class="nota-fecha">${fechaHora(n.fecha)}${pendienteEnvio ? ' · <b title="Se enviará cuando haya señal">⟳ sin enviar</b>' : ''}</span>
+        </div>
+        <div class="nota-txt">${esc(n.texto)}</div>
+        <div class="nota-pie">
+          ${n.producto ? `<a href="#/p/${encodeURIComponent(n.producto)}">${esc(n.producto)}${p && !compacta ? ' · ' + esc(p.n) : ''}</a>` : ''}
+          ${n.maquina ? `<a href="#/m/${encodeURIComponent(n.maquina)}">Máq ${esc(n.maquina)}</a>` : ''}
+          ${!compacta && n.autor ? `<span>${esc(n.autor)}</span>` : ''}
+        </div>
+        <div class="nota-acc">
+          <button type="button" data-accion="estado">${n.estado === 'Resuelta' ? '↺ Reabrir' : '✓ Resuelta'}</button>
+          <a href="#/nota/${encodeURIComponent(n.id)}">Editar</a>
+        </div>
+      </div>`;
+  }
+
+  function notasCortasHtml(filtro, vacio) {
+    const l = E.notas.filter(filtro);
+    return l.length ? `<div class="notas-lista">${l.map(n => notaHtml(n, true)).join('')}</div>` : `<div class="tarjeta" style="color:var(--tinta-2)">${vacio}</div>`;
+  }
+
+  // Botones "Resuelta / Reabrir" (funciona en cualquier pantalla)
+  $vista.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-accion="estado"]');
+    if (!b) return;
+    const card = b.closest('.nota-card');
+    const n = E.notas.find(x => x.id === card.dataset.id);
+    if (!n) return;
+    guardarNota(Object.assign({}, n, { estado: n.estado === 'Resuelta' ? 'Pendiente' : 'Resuelta' }), true);
+  });
+
+  function pintarNotas(q) {
+    if (q && q.get('buscar') != null) E.textoNotas = q.get('buscar');
+    const filtros = { Pendiente: 'Pendientes', Resuelta: 'Resueltas', todas: 'Todas' };
+    if (!document.getElementById('qn') || ruta().vista !== 'notas') {
+      $vista.innerHTML = `
+        <div class="busca">
+          <div class="busca-caja">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="qn" type="text" enterkeyhint="search" placeholder="Buscar en notas, código o máquina" autocomplete="off" value="${esc(E.textoNotas)}">
+          </div>
+          <div class="chips">
+            ${Object.entries(filtros).map(([k, t]) => `<button class="chip ${E.filtroNotas === k ? 'on' : ''}" data-f="${k}" type="button">${t}</button>`).join('')}
+          </div>
+        </div>
+        <div id="res-notas"></div>
+        <a class="fab" href="#/nota/nueva">+ Nueva nota</a>`;
+      const qn = document.getElementById('qn');
+      qn.addEventListener('input', () => { E.textoNotas = qn.value; pintarListaNotas(); });
+      $vista.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+        E.filtroNotas = b.dataset.f;
+        $vista.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b));
+        pintarListaNotas();
+      }));
+    }
+    pintarListaNotas();
+    if (Date.now() - E.notasHora > 60000) bajarNotas();
+  }
+
+  function pintarListaNotas() {
+    const $r = document.getElementById('res-notas');
+    if (!$r) return;
+    const toks = norm(E.textoNotas).split(/\s+/).filter(Boolean);
+    let l = E.notas;
+    if (E.filtroNotas !== 'todas') l = l.filter(n => (n.estado || 'Pendiente') === E.filtroNotas);
+    if (toks.length) l = l.filter(n => {
+      const p = n.producto && E.porCod[n.producto];
+      const t = norm([n.texto, n.etiqueta, n.producto, p && p.n, n.maquina && 'maq ' + n.maquina, n.autor].join(' '));
+      return toks.every(x => t.includes(x));
+    });
+    $r.innerHTML = l.length
+      ? `<div class="titulo">${l.length} nota${l.length === 1 ? '' : 's'}</div><div class="notas-lista">${l.map(n => notaHtml(n, false)).join('')}</div>`
+      : `<div class="vacio"><b>${E.notas.length ? 'Sin notas con ese filtro' : 'Todavía no hay notas'}</b>Toca "+ Nueva nota" para escribir la primera.</div>`;
+  }
+
+  function pintarEditorNota(id, q) {
+    const existente = id && id !== 'nueva' ? E.notas.find(n => n.id === id) : null;
+    const n = existente || {
+      etiqueta: 'General', estado: 'Pendiente',
+      producto: (q && q.get('prod')) || '', maquina: (q && q.get('maq')) || '', texto: ''
+    };
+    const prodNombre = (c) => (E.porCod[c] ? E.porCod[c].n : '');
+    $vista.innerHTML = `
+      <div class="ficha-top">
+        <button class="volver" type="button" aria-label="Volver" onclick="history.back()">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="ficha-tit"><div class="ficha-nom">${existente ? 'Editar nota' : 'Nueva nota'}</div>
+          ${existente ? `<div class="ficha-cod">${fechaHora(n.fecha)} · ${esc(n.autor || '')}</div>` : ''}</div>
+      </div>
+      <form id="f-nota" class="tarjeta" style="margin-top:14px">
+        <div class="campo">
+          <label for="n-texto">Nota</label>
+          <textarea id="n-texto" rows="6" required placeholder="Ej.: 6535-4 necesita terracota, revisar MB con almacén">${esc(n.texto)}</textarea>
+        </div>
+        <div class="campo">
+          <label>Etiqueta</label>
+          <div class="chips chips-wrap">${ETIQUETAS.map(e => `<button class="chip ${n.etiqueta === e ? 'on' : ''}" data-e="${e}" type="button">${e}</button>`).join('')}</div>
+        </div>
+        <div class="campo">
+          <label for="n-prod">Producto (opcional)</label>
+          <input id="n-prod" list="lista-prod" placeholder="Código, ej. 6535-4" value="${esc(n.producto)}" autocomplete="off">
+          <datalist id="lista-prod">${E.datos ? E.datos.productos.map(p => `<option value="${esc(p.c)}">${esc(p.n)}</option>`).join('') : ''}</datalist>
+          <div class="campo-ayuda" id="n-prod-nom">${esc(prodNombre(n.producto))}</div>
+        </div>
+        <div class="campo">
+          <label for="n-maq">Máquina (opcional)</label>
+          <select id="n-maq">
+            <option value="">—</option>
+            ${E.datos && E.datos.maquinas ? E.datos.maquinas.map(m => `<option value="${esc(m.n)}" ${n.maquina === m.n ? 'selected' : ''}>${esc(m.n)}${m.cap ? ' · ' + fmt(m.cap) + ' t' : ''} · ${esc(m.est)}</option>`).join('') : ''}
+          </select>
+        </div>
+        ${existente ? `<label class="check"><input type="checkbox" id="n-resuelta" ${n.estado === 'Resuelta' ? 'checked' : ''}> Resuelta</label>` : ''}
+        <button class="boton" type="submit">Guardar nota</button>
+      </form>`;
+    let etiqueta = n.etiqueta || 'General';
+    $vista.querySelectorAll('[data-e]').forEach(b => b.addEventListener('click', () => {
+      etiqueta = b.dataset.e;
+      $vista.querySelectorAll('[data-e]').forEach(x => x.classList.toggle('on', x === b));
+    }));
+    const $prod = document.getElementById('n-prod');
+    $prod.addEventListener('input', () => { document.getElementById('n-prod-nom').textContent = prodNombre($prod.value.trim().toUpperCase()); });
+    if (!existente) setTimeout(() => document.getElementById('n-texto').focus(), 50);
+    document.getElementById('f-nota').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const texto = document.getElementById('n-texto').value.trim();
+      if (!texto) return;
+      const chk = document.getElementById('n-resuelta');
+      guardarNota({
+        id: existente ? existente.id : nuevoId(),
+        fecha: existente ? existente.fecha : new Date().toISOString(),
+        autor: existente ? existente.autor : E.autor,
+        etiqueta,
+        producto: $prod.value.trim().toUpperCase(),
+        maquina: document.getElementById('n-maq').value,
+        texto,
+        estado: chk ? (chk.checked ? 'Resuelta' : 'Pendiente') : 'Pendiente'
+      });
+      history.back();
+    });
+  }
+
+  // Guarda local + cola; se envía apenas haya señal
+  async function guardarNota(nota, quedarse) {
+    nota.actualizado = new Date().toISOString();
+    E.notas = [nota].concat(E.notas.filter(n => n.id !== nota.id))
+      .sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+    E.cola = E.cola.filter(n => n.id !== nota.id).concat([nota]);
+    await Promise.all([DB.set('notas', E.notas), DB.set('cola', E.cola)]);
+    avisar(navigator.onLine ? 'Nota guardada' : 'Nota guardada en el teléfono: se enviará cuando haya señal', 3000);
+    if (quedarse) repintar();
+    enviarCola();
+  }
+
+  async function enviarCola() {
+    if (enviarCola.activo || !E.cola.length || !E.clave || !navigator.onLine) return;
+    enviarCola.activo = true;
+    let enviadas = 0;
+    try {
+      for (const n of E.cola.slice()) {
+        await API.guardarNota(E.clave, n);
+        E.cola = E.cola.filter(x => !(x.id === n.id && x.actualizado === n.actualizado));
+        await DB.set('cola', E.cola);
+        enviadas++;
+      }
+    } catch (e) {
+      console.warn('Notas: no se pudo enviar', e);
+    } finally {
+      enviarCola.activo = false;
+      if (enviadas) bajarNotas();
+    }
+  }
+
+  async function bajarNotas() {
+    if (!E.clave || !navigator.onLine) return;
+    try {
+      const r = await API.notas(E.clave);
+      const pendientes = {};
+      E.cola.forEach(n => { pendientes[n.id] = n; });
+      const servidor = (r.data || []).filter(n => !pendientes[n.id]);
+      E.notas = servidor.concat(Object.values(pendientes)).sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+      E.notasHora = Date.now();
+      await DB.set('notas', E.notas);
+      repintar({ fondo: true });
+    } catch (e) {
+      console.warn('Notas: no se pudieron bajar', e);
+    }
+  }
+  window.addEventListener('online', () => { enviarCola(); });
+
   // ============================================================ Pantalla: alertas
 
   function alertas() {
@@ -406,6 +774,9 @@
     const b = document.getElementById('badge-alertas');
     const n = alertas().crit.length;
     b.hidden = !n; b.textContent = n > 99 ? '99+' : n;
+    const bn = document.getElementById('badge-notas');
+    const pn = E.notas.filter(x => x.estado !== 'Resuelta').length;
+    bn.hidden = !pn; bn.textContent = pn > 99 ? '99+' : pn;
   }
 
   function pintarAlertas() {
@@ -439,10 +810,21 @@
       <div class="tarjeta filas">
         <div><span>Actualizados</span><b>${d ? haceCuanto(d.generado) : '—'}</b></div>
         <div><span>Productos</span><b class="num">${d ? fmt(d.productos.length) : '—'}</b></div>
+        <div><span>Máquinas</span><b class="num">${d && d.maquinas ? fmt(d.maquinas.length) : '—'}</b></div>
+        <div><span>Notas</span><b class="num">${fmt(E.notas.length)}${E.cola.length ? ` · ${E.cola.length} sin enviar` : ''}</b></div>
         <div><span>Meses del MPS</span><b>${d && d.meses ? d.meses.map(mesCorto).join(', ') : '—'}</b></div>
       </div>
       <button class="boton" id="b-fresco" type="button" style="margin-top:10px">Recalcular y descargar ahora</button>
       <div class="nota">Los datos se recalculan solos cada 10 minutos. Usa este botón si acabas de cambiar algo en las hojas.</div>
+
+      <div class="titulo">Notas</div>
+      <form id="f-autor" class="tarjeta">
+        <div class="campo">
+          <label for="autor">Tu nombre (firma de las notas)</label>
+          <input id="autor" type="text" value="${esc(E.autor)}" maxlength="80">
+        </div>
+        <button class="boton sec" type="submit">Guardar nombre</button>
+      </form>
 
       <div class="titulo">Aplicación</div>
       <div class="tarjeta filas">
@@ -463,6 +845,13 @@
       <button class="boton sec" id="b-salir" type="button" style="margin-top:10px">Cerrar sesión</button>`;
 
     document.getElementById('b-fresco').addEventListener('click', () => sincronizar(true));
+    document.getElementById('f-autor').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const v = document.getElementById('autor').value.trim();
+      if (!v) return;
+      E.autor = v; await DB.set('autor', v);
+      avisar('Nombre guardado');
+    });
     document.getElementById('f-api').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const v = document.getElementById('api').value.trim();
@@ -481,8 +870,11 @@
   async function iniciar() {
     $sync.addEventListener('click', () => sincronizar(true));
     try {
-      const [clave, datos, seg, rec, vApi] = await Promise.all(
-        ['clave', 'datos', 'seguimiento', 'recientes', 'versionApi'].map(k => DB.get(k)));
+      const [clave, datos, seg, rec, vApi, notas, cola, autor] = await Promise.all(
+        ['clave', 'datos', 'seguimiento', 'recientes', 'versionApi', 'notas', 'cola', 'autor'].map(k => DB.get(k)));
+      E.notas = notas || [];
+      E.cola = cola || [];
+      if (autor) E.autor = autor;
       E.clave = clave || null;
       E.seguimiento = seg || [];
       E.recientes = rec || [];
@@ -492,13 +884,14 @@
       console.warn('No se pudo leer el almacenamiento local', e);
     }
     repintar();
-    if (E.clave) sincronizar(false);
+    if (E.clave) { sincronizar(false); enviarCola(); bajarNotas(); }
     revisarActualizacion();
     setInterval(pintarSync, 60000);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || !E.clave) return;
       const min = E.datos ? (Date.now() - new Date(E.datos.generado).getTime()) / 60000 : Infinity;
       if (min > AUTO_MIN) sincronizar(false);
+      enviarCola();
     });
   }
 

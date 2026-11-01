@@ -16,25 +16,47 @@ Hojas de Google (fuentes)  →  API (Apps Script)  →  App en el teléfono (est
 
 | Capa | Dónde vive | Qué hace |
 |---|---|---|
-| **Fuentes** | Archivo **MPS** (hojas `Stock de Seguridad`, `Inv Query`, `Inventario MPS`, `MPS`) y archivo **Seguimiento de Orden de Producción Actualización Diaria** (hoja `Resumen de OP`) | Donde se trabaja todos los días. La app no las modifica. |
+| **Fuentes** | Archivo **MPS** (hojas `Stock de Seguridad`, `Inv Query`, `Inventario MPS`, `MPS`), archivo **Seguimiento de Orden de Producción Actualización Diaria** (hoja `Resumen de OP`) y **Base de Datos Planificación** (hojas `Componentes` y `Maquinas/Producto`) | Donde se trabaja todos los días. La app solo las lee. |
+| **Registros** | Archivo **App Manaplas · Registros** (lo crea la API) | Lo que se escribe desde la app: notas. |
 | **API** | Proyecto Apps Script independiente. Copia del código en [`api/Codigo.gs`](api/Codigo.gs) | Lee las fuentes, arma un paquete con todos los productos y lo guarda en caché. Se recalcula sola cada 10 minutos. |
 | **App** | Este repositorio, publicado con GitHub Pages | Descarga el paquete, lo guarda en el teléfono (IndexedDB) y lo muestra. Funciona sin señal con los últimos datos. |
 
 **Regla de oro:** la app solo habla con la API. Si algún día los datos pasan de Google Sheets a una base
 de datos, se cambia la API y la app no se toca.
 
-## Qué hace la app (v0.1)
+## Qué hace la app (v0.3)
 
 - **Buscar:** por código (`6825`, `6825-0`) o por nombre (`silla blanco`), con filtro por clase.
+  - Al inicio: conteos del día, notas pendientes, productos ★ y vistos recientemente.
 - **Ficha de producto:**
-  - urgencia (Stock de Seguridad);
-  - inventario de hoy y del corte del mes;
-  - meses de inventario, venta promedio, stock de seguridad y stock objetivo;
-  - OP abiertas con avance y cerradas recientes;
-  - MPS de los próximos 5 meses.
+  - urgencia; inventario de hoy y del corte;
+  - OP abiertas con avance y las cerradas recientes;
+  - **piezas y máquinas compatibles** por tonelaje;
+  - notas del producto;
+  - MPS de 5 meses.
 - **Alertas:** críticos y urgentes **sin OP abierta**, por ranking.
-- **Seguimiento:** productos marcados con ★ (guardados en el teléfono).
-- **Ajustes:** forzar actualización, versiones, dirección de la API, cerrar sesión.
+- **Máquinas:** las inyectoras y sopladoras con su estatus y lo que tienen montado. En el detalle de cada una:
+  - sus OP;
+  - los **críticos o urgentes sin OP que caben en esa máquina**;
+  - sus notas.
+- **Notas:**
+  - Se escriben con etiqueta (General, Color, Molde, Material, Inventario, Producción, Máquina) y, si se quiere, ligadas a un producto o a una máquina.
+  - Se pueden buscar y marcar como resueltas.
+  - Sin señal se guardan en el teléfono y se envían solas después.
+  - Quedan en la hoja **Notas** del archivo **App Manaplas · Registros**, que la API crea en el Drive de la cuenta de la empresa.
+- **Ajustes:** forzar actualización, firma de las notas, versiones, dirección de la API y cerrar sesión.
+
+### Regla de tonelaje (Componentes → máquinas)
+Una pieza va en las inyectoras de **su misma centena** de tonelaje, y nunca en una máquina más pequeña:
+- 300 → 300 y 310
+- 400 → 440 y 450
+- 500 → 550 y 580
+- 220 → 220 y 225
+
+`SOP` → sopladoras. Sin tonelaje válido (vacío, `#N/A`, `-`, valores que no existen en planta) → "consultar con Moldes".
+Para ir más allá de la regla hay que consultar con Moldes. La regla vive en `maquinasCompatibles_()` de la API.
+
+Fuente: **Base de Datos Planificación**. El tonelaje sale de la hoja `Componentes` (que lo toma de `Caracteristicas` → "Máquina (ton)"); las máquinas y su estatus, de `Maquinas/Producto`.
 
 ## Archivos
 

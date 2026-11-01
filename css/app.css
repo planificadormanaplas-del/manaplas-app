@@ -197,7 +197,7 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
 /* ---------- Navegación inferior */
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--nav-alto) + var(--seguro-abajo)); padding-bottom: var(--seguro-abajo);
   background: var(--tarjeta); border-top: 1px solid var(--linea);
 }
@@ -224,3 +224,58 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
   background: var(--amarillo); color: var(--tinta); padding: 10px 16px; font-size: 14px;
 }
 .actualizar span { font-size: 12px; }
+
+/* ---------- Piezas y máquinas */
+.pieza + .pieza { margin-top: 8px; }
+.pieza-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 14px; }
+.pieza-det { font-size: 12px; color: var(--tinta-3); margin-top: 4px; }
+.maq-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.maq-chip {
+  min-width: 44px; text-align: center; padding: 6px 8px; border-radius: 9px; font-weight: 800; font-size: 13px;
+  background: var(--fondo); border: 2px solid var(--c, var(--linea)); color: var(--tinta);
+}
+.maq-chip.aqui { background: var(--c); color: #fff; }
+.pieza-ahora { font-size: 12px; font-weight: 700; color: var(--azul-osc); margin-top: 8px; }
+.aviso-dato { font-size: 12px; font-weight: 600; color: var(--naranja); margin-top: 8px; }
+.maq-item { align-items: center; }
+.maq-num { flex: none; width: 54px; text-align: center; }
+.maq-num b { display: block; font-size: 20px; font-weight: 800; }
+.maq-num span { font-size: 11px; color: var(--tinta-3); }
+.mini-av { height: 5px; background: var(--fondo); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.mini-av i { display: block; height: 100%; background: var(--azul); }
+.item-pieza { font-size: 11px; color: var(--azul-osc); font-weight: 700; margin-top: 3px; }
+.enlace-op { display: block; }
+.enlace-op + .enlace-op { margin-top: 8px; }
+.titulo-accion { display: flex; justify-content: space-between; align-items: baseline; }
+.titulo-accion a { text-transform: none; letter-spacing: 0; color: var(--azul); font-size: 14px; }
+
+/* ---------- Notas */
+.notas-lista { display: flex; flex-direction: column; gap: 8px; }
+.nota-card.resuelta { opacity: .6; }
+.nota-card.resuelta .nota-txt { text-decoration: line-through; text-decoration-color: var(--tinta-3); }
+.nota-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nota-fecha { font-size: 12px; color: var(--tinta-3); }
+.nota-fecha b { color: var(--naranja); }
+.nota-txt { font-size: 15px; line-height: 1.45; margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
+.nota-pie { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 12px; color: var(--tinta-2); }
+.nota-pie a { color: var(--azul-osc); font-weight: 700; }
+.nota-acc { display: flex; justify-content: flex-end; gap: 16px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--linea); font-size: 13px; font-weight: 700; }
+.nota-acc button { border: 0; background: none; color: var(--verde); font-weight: 700; padding: 0; cursor: pointer; }
+.nota-acc a { color: var(--azul); }
+.fab {
+  position: fixed; right: 16px; bottom: calc(var(--nav-alto) + var(--seguro-abajo) + 16px); z-index: 9;
+  background: var(--azul); color: #fff; font-weight: 800; padding: 14px 18px; border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(27,172,238,.35);
+}
+.enlace-notas { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; border-left: 4px solid var(--amarillo); }
+.enlace-notas span { margin-left: auto; color: var(--azul); font-weight: 700; }
+.campo textarea, .campo select {
+  width: 100%; border: 1.5px solid var(--linea); border-radius: 12px; padding: 12px 14px; font: inherit; font-size: 16px; background: var(--tarjeta); color: inherit;
+}
+.campo textarea { resize: vertical; line-height: 1.45; }
+.campo textarea:focus, .campo select:focus { outline: 0; border-color: var(--azul); }
+.campo-ayuda { font-size: 12px; color: var(--tinta-3); margin-top: 4px; min-height: 14px; }
+.chips-wrap { flex-wrap: wrap; overflow: visible; margin-top: 0; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 600; margin: 0 0 14px; }
+.check input { width: 20px; height: 20px; }
+.nav-badge.azul { background: var(--azul); }
