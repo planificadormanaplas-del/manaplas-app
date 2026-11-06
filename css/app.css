@@ -319,3 +319,29 @@ table.mps { width: 100%; border-collapse: collapse; font-size: 13px; }
 
 .recorrido .rc-prod { font-size: 16px; font-weight: 700; margin-top: 10px; }
 .recorrido .rc-notas { margin-top: 8px; font-size: 14px; color: var(--tinta-2); font-style: italic; }
+
+/* ---------- Asignar */
+.segmento { grid-template-columns: repeat(3, 1fr); }
+.sel-maq { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.sel-maq a { text-align: center; padding: 9px 0; border-radius: 10px; font-weight: 800; font-size: 14px; background: #DCE3EB; color: var(--tinta-2); }
+.sel-maq a.libre { background: #fff; color: var(--tinta); border: 2px solid #AEB9C7; }
+.sel-maq a.termina { background: var(--narciso); color: #5C4A00; }
+.asig + .asig { margin-top: 10px; }
+.asig-cab { display: flex; align-items: center; gap: 12px; }
+.asig-est { flex: 1; min-width: 0; }
+.asig-cuenta { font-size: 13px; color: var(--tinta-2); margin-top: 6px; }
+.asig-cuenta b { color: var(--rojo); }
+.asig-ir { font-size: 26px; color: var(--tinta-3); }
+.cands { margin-top: 10px; border-top: 1px solid var(--linea); }
+.cand { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--linea); }
+.cand .punto { flex: none; margin: 0; }
+.cand-txt { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cand-txt span { display: block; font-size: 11px; color: var(--azul-osc); font-weight: 700; }
+.cand-inv { flex: none; font-weight: 800; font-size: 14px; }
+.asig-mas { display: block; text-align: right; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--azul); }
+.aviso-lib { border-left: 4px solid var(--verde); font-size: 14px; margin-bottom: 4px; }
+.grupo-cand { margin-bottom: 10px; }
+.grupo-cand summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--tinta-2); text-transform: uppercase; letter-spacing: .5px; padding: 8px 4px; list-style: none; }
+.grupo-cand summary::-webkit-details-marker { display: none; }
+.grupo-cand summary::after { content: '▾'; float: right; color: var(--tinta-3); }
+.grupo-cand:not([open]) summary::after { content: '▸'; }

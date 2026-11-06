@@ -22,6 +22,7 @@
     autor: 'Royseg Coello - Planificador Junior',
     filtroMaq: 'todas',
     vistaMaq: 'mapa',
+    incluirConOP: false,
     zoomMapa: null,       // null = ajustar al ancho de la pantalla
     filtroNotas: 'Pendiente',
     textoNotas: ''
@@ -608,8 +609,9 @@
       <div class="segmento">
         <button type="button" data-vista="mapa" class="${E.vistaMaq === 'mapa' ? 'on' : ''}">Mapa</button>
         <button type="button" data-vista="lista" class="${E.vistaMaq === 'lista' ? 'on' : ''}">Lista</button>
+        <button type="button" data-vista="asignar" class="${E.vistaMaq === 'asignar' ? 'on' : ''}">Asignar</button>
       </div>
-      ${E.vistaMaq === 'mapa' ? mapaHtml() : `
+      ${E.vistaMaq === 'mapa' ? mapaHtml() : E.vistaMaq === 'asignar' ? asignarHtml() : `
       <div class="chips" style="margin:0 0 4px">
         ${Object.entries(filtros).map(([k, t]) => `<button class="chip ${E.filtroMaq === k ? 'on' : ''}" data-f="${k}" type="button">${t}</button>`).join('')}
       </div>
@@ -650,18 +652,98 @@
       </a>`;
   }
 
+  // ============================================================ Asignar: qué hacer en cada máquina
+
+  const UMBRAL_TERMINA = 85;   // % de avance a partir del cual una máquina "está por terminar"
+  const NIVEL_URG = (u) => {
+    const x = norm(u);
+    if (x.startsWith('critico')) return 0;
+    if (x.startsWith('urgente')) return 1;
+    if (x.startsWith('planificar')) return 2;
+    if (x === 'ok') return 3;
+    return 4;
+  };
+  const GRUPOS_URG = [
+    { n: 0, t: 'Críticos', c: 'var(--rojo)' }, { n: 1, t: 'Urgentes', c: 'var(--naranja)' },
+    { n: 2, t: 'Planificar', c: 'var(--lila)' }, { n: 3, t: 'OK', c: 'var(--verde)' }, { n: 4, t: 'Sin clasificar', c: 'var(--tinta-3)' }
+  ];
+
+  // Productos activos con alguna pieza que se puede hacer en la máquina n.
+  // Orden: críticos, urgentes, planificar, OK; dentro de cada grupo, por ranking del Stock de Seguridad.
+  function candidatosPara(n, conOP) {
+    const l = [];
+    E.datos.productos.forEach(p => {
+      if (!(p.est === 'Act' || !p.est)) return;
+      if (!conOP && opAbierta(p)) return;
+      const z = (p.pz || []).find(z => (z.maq || []).includes(n));
+      if (z) l.push({ p, z, nivel: NIVEL_URG(p.u) });
+    });
+    return l.sort((a, b) => (a.nivel - b.nivel) || ((a.p.r || 1e9) - (b.p.r || 1e9)));
+  }
+
+  // ¿La máquina está libre o por terminar? (solo operativas)
+  function liberacion(n) {
+    const m = E.porMaq[n];
+    if (!m || !/^operativa$/i.test(m.est)) return null;
+    // En falla, cambio de molde o sin operario/MP: no está disponible para asignar
+    if (['falla', 'molde', 'falta'].includes(estadoMapa(n))) return null;
+    const ops = E.opsPorMaq[n] || [];
+    const rc = recorridoDe(n);
+    if (!ops.length) return { tipo: 'libre', orden: 0, txt: 'Libre · sin OP' };
+    if (ops.length === 1 && rc && /finalizada/i.test(rc.est)) return { tipo: 'libre', orden: 0, txt: 'Orden finalizada en el recorrido' };
+    if (ops.length === 1 && !/pendiente/i.test(ops[0].clas)) {
+      const o = ops[0];
+      const pct = o.uni ? Math.round(o.prod / o.uni * 100) : 0;
+      if (pct >= UMBRAL_TERMINA) return { tipo: 'termina', orden: 1, pct, txt: `Por terminar · ${pct}% · faltan ${fmt(Math.max(0, o.uni - o.prod))}` };
+    }
+    return null;
+  }
+
+  function filaCandidato({ p, z }) {
+    const g = GRUPOS_URG[NIVEL_URG(p.u)];
+    return `<a class="cand" href="#/p/${encodeURIComponent(p.c)}">
+      <i class="punto" style="--c:${g.c}"></i>
+      <div class="cand-txt"><b>${esc(p.c)}</b> ${esc(p.n)}<span>${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</span></div>
+      <div class="cand-inv num">${fmt(p.inv)}</div>
+    </a>`;
+  }
+
+  function asignarHtml() {
+    const opers = E.datos.maquinas.filter(m => /^operativa$/i.test(m.est) && /inyectora/i.test(m.cat));
+    const libres = opers.map(m => ({ m, l: liberacion(m.n) })).filter(x => x.l)
+      .sort((a, b) => (a.l.orden - b.l.orden) || ((b.l.pct || 0) - (a.l.pct || 0)) || (Number(a.m.n) - Number(b.m.n)));
+    const tarjetas = libres.map(({ m, l }) => {
+      const cand = candidatosPara(m.n, false);
+      const urg = cand.filter(c => c.nivel <= 1).length;
+      return `<div class="tarjeta asig">
+        <a class="asig-cab" href="#/m/${encodeURIComponent(m.n)}">
+          <div class="maq-num"><b>${esc(m.n)}</b><span>${m.cap ? fmt(m.cap) + ' t' : ''}</span></div>
+          <div class="asig-est"><span class="tag" style="--c:${l.tipo === 'libre' ? '#fff' : 'var(--narciso)'};--t:#17212B;border:1.5px solid #AEB9C7">${esc(l.txt)}</span>
+            <div class="asig-cuenta">${urg ? `<b>${urg}</b> crítico${urg === 1 ? '' : 's'}/urgente${urg === 1 ? '' : 's'} caben aquí` : 'Sin críticos ni urgentes para esta máquina'}</div></div>
+          <span class="asig-ir">›</span>
+        </a>
+        ${cand.length ? `<div class="cands">${cand.slice(0, 3).map(filaCandidato).join('')}</div>
+          <a class="asig-mas" href="#/m/${encodeURIComponent(m.n)}">Ver los ${cand.length} productos que se pueden hacer →</a>` : ''}
+      </div>`;
+    }).join('');
+    return `
+      <div class="titulo">Elegir máquina</div>
+      <div class="sel-maq">${opers.map(m => {
+        const l = liberacion(m.n);
+        return `<a href="#/m/${encodeURIComponent(m.n)}" class="${l ? l.tipo : ''}">${esc(m.n)}</a>`;
+      }).join('')}</div>
+      <div class="nota">Blanco = libre · amarillo = por terminar (≥ ${UMBRAL_TERMINA}%) · gris = ocupada, en falla o en cambio de molde.</div>
+      <div class="titulo">Se liberan pronto · ${libres.length}</div>
+      ${tarjetas || `<div class="vacio">Ninguna máquina operativa está libre ni por terminar.</div>`}`;
+  }
+
   function pintarMaquina(n) {
     const m = E.porMaq[n];
     if (!m) { $vista.innerHTML = `<div class="vacio"><b>No encuentro la máquina ${esc(n)}</b><a href="#/maquinas" style="color:var(--azul)">Ver máquinas</a></div>`; return; }
     const ops = E.opsPorMaq[n] || [];
-    // Productos crítico/urgente sin OP con alguna pieza compatible con esta máquina
-    const candidatos = [];
-    E.datos.productos.forEach(p => {
-      if (!(p.est === 'Act' || !p.est) || opAbierta(p) || !/CR[IÍ]TICO|URGENTE/i.test(p.u || '')) return;
-      const z = (p.pz || []).find(z => (z.maq || []).includes(n));
-      if (z) candidatos.push({ p, z });
-    });
-    candidatos.sort((a, b) => (/CR[IÍ]TICO/i.test(b.p.u) - /CR[IÍ]TICO/i.test(a.p.u)) || ((a.p.r || 1e9) - (b.p.r || 1e9)));
+    // Todo lo que se puede hacer en esta máquina, por urgencia
+    const candidatos = candidatosPara(n, E.incluirConOP);
+    const lib = liberacion(n);
     const k = estMaq(m.est);
     $vista.innerHTML = `
       <div class="ficha-top">
@@ -703,10 +785,20 @@
         return `<a href="#/p/${encodeURIComponent(o.cod)}" class="enlace-op">${opHtml(o, p ? p.n : o.cod)}</a>`;
       }).join('') : `<div class="tarjeta" style="color:var(--tinta-2)">Sin OP abierta.</div>`}
 
-      <div class="titulo">${st('molde')} Críticos y urgentes sin OP que caben aquí · ${candidatos.length}</div>
-      ${candidatos.length ? `<div class="lista">${candidatos.slice(0, 40).map(({ p, z }) =>
-        itemHtml(p).replace('<div class="item-nom">', `<div class="item-pieza">${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</div><div class="item-nom">`)).join('')}</div>`
-        : `<div class="vacio">Ningún producto crítico o urgente sin OP tiene piezas para esta máquina.</div>`}`;
+      <div class="titulo">${st('molde')} Qué se puede hacer aquí · ${candidatos.length}</div>
+      ${lib ? `<div class="tarjeta aviso-lib"><b>${esc(lib.txt)}</b> — buen momento para asignarle el siguiente producto.</div>` : ''}
+      <label class="check" style="margin:8px 4px 10px"><input type="checkbox" id="con-op" ${E.incluirConOP ? 'checked' : ''}> Incluir productos que ya tienen OP abierta</label>
+      ${candidatos.length ? GRUPOS_URG.map(g => {
+        const l = candidatos.filter(c => c.nivel === g.n);
+        if (!l.length) return '';
+        const abierto = g.n <= 1;
+        return `<details class="grupo-cand" ${abierto ? 'open' : ''}>
+          <summary><i class="punto" style="--c:${g.c}"></i>${g.t} · ${l.length}</summary>
+          <div class="lista">${l.map(({ p, z }) => itemHtml(p).replace('<div class="item-nom">', `<div class="item-pieza">${esc(z.cod)} · ${esc(z.parte || z.nom)} · ${esc(z.ton)} t</div><div class="item-nom">`)).join('')}</div>
+        </details>`;
+      }).join('') : `<div class="vacio">Ningún producto activo tiene piezas cargadas para esta máquina. Revisa el tonelaje en la Base de Datos.</div>`}`;
+    const chk = document.getElementById('con-op');
+    if (chk) chk.addEventListener('change', () => { E.incluirConOP = chk.checked; pintarMaquina(n); });
   }
 
   // ============================================================ Notas
