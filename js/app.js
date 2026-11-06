@@ -311,6 +311,8 @@
           <a class="cuenta" href="#/alertas" style="--c:var(--naranja)"><div class="cuenta-n num">${urgte}</div><div class="cuenta-t"><i class="punto" style="--c:var(--naranja)"></i>Urgentes</div></a>
           <div class="cuenta" style="--c:var(--azul)"><div class="cuenta-n num">${enProd}</div><div class="cuenta-t"><i class="punto" style="--c:var(--azul)"></i>Con OP abierta</div></div>
         </div>
+        ${E.datos.maquinas ? `<div class="titulo">${st('mantenimiento')} Planta hoy</div><a href="#/maquinas" class="enlace-bloque">${tarjetasHoyHtml()}</a>` : ''}
+        ${avisosDelDia().length ? `<div class="titulo">${st('checklist')} Avisos del día · ${avisosDelDia().length}</div>${avisosHtml(6)}` : ''}
         ${pend ? `<a class="tarjeta enlace-notas" href="#/notas">${st('checklist', 'st-mini')} <b class="num">${pend}</b> nota${pend === 1 ? '' : 's'} pendiente${pend === 1 ? '' : 's'} <span>Ver →</span></a>` : ''}
         ${seg.length ? `<div class="titulo">⭐ Tener en cuenta · ${seg.length}</div><div class="lista">${seg.map(itemHtml).join('')}</div>` : ''}
         ${rec.length ? `<div class="titulo">🕘 Vistos recientemente</div><div class="lista">${rec.map(itemHtml).join('')}</div>`
@@ -521,38 +523,48 @@
     falla: { c: '#9AA5B4', t: '#fff', b: '#8793A3', txt: 'Falla / mantenimiento' },
     falta: { c: 'var(--lila)', t: '#fff', b: 'var(--lila)', txt: 'Falta operario / materia prima' },
     prueba: { c: 'var(--azul)', t: '#fff', b: 'var(--azul)', txt: 'Prueba' },
-    libre: { c: '#fff', t: '#4F5B67', b: '#AEB9C7', txt: 'Sin OP / orden finalizada' }
+    libre: { c: '#fff', t: '#4F5B67', b: '#AEB9C7', txt: 'Orden finalizada' },
+    sinreg: { c: '#E4E9EF', t: '#8A96A3', b: '#C9D2DC', txt: 'Sin recorrido hoy' }
   };
   const recorridoDe = (n) => E.datos && E.datos.recorrido && E.datos.recorrido.maquinas && E.datos.recorrido.maquinas[n];
+  // Fecha de hoy (del teléfono) en formato aaaa-mm-dd
+  const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  // Registro del recorrido de HOY de la máquina (si no hubo hoy, no cuenta)
+  const recorridoHoy = (n) => { const rc = recorridoDe(n); return rc && String(rc.fecha).slice(0, 10) === hoyISO() ? rc : null; };
+
+  // El estado de la máquina sale solo del recorrido de hoy
   function estadoMapa(n) {
-    // 1) Último registro del recorrido
-    const rc = recorridoDe(n);
-    if (rc) {
-      const e = norm(rc.est);
-      if (e.startsWith('produciendo')) return 'produciendo';
-      if (e.startsWith('por arrancar')) return 'arrancar';
-      if (e.startsWith('cambio de molde')) return 'molde';
-      if (e.startsWith('falla') || e.startsWith('mantenimiento')) return 'falla';
-      if (e.startsWith('falta')) return 'falta';
-      if (e.startsWith('prueba')) return 'prueba';
-      return 'libre';
-    }
-    // 2) Estatus del Seguimiento de OP
-    const r = E.datos && E.datos.estadoMaq && E.datos.estadoMaq[n];
-    if (r) {
-      const e = r.est.toUpperCase();
-      if (/^CM\b/.test(e)) return 'molde';
-      if (/^FALLA|^MANTENIMIENTO/.test(e)) return 'falla';
-      if (/^FO\b|^FPM\b/.test(e)) return 'falta';
-      if (/^P\b/.test(e)) return 'produciendo';
-      if (/^PA\b/.test(e)) return 'arrancar';
-      if (/^PRUEBA/.test(e)) return 'prueba';
-      return 'libre';
-    }
-    // Sin estatus en Registro: se usa la OP abierta
-    const ops = E.opsPorMaq[n] || [];
-    if (ops.some(o => !/pendiente/i.test(o.clas))) return 'produciendo';
-    return ops.length ? 'arrancar' : 'libre';
+    const rc = recorridoHoy(n);
+    if (!rc) return 'sinreg';
+    const e = norm(rc.est);
+    if (e.startsWith('produciendo')) return 'produciendo';
+    if (e.startsWith('por arrancar')) return 'arrancar';
+    if (e.startsWith('cambio de molde')) return 'molde';
+    if (e.startsWith('falla') || e.startsWith('mantenimiento')) return 'falla';
+    if (e.startsWith('falta')) return 'falta';
+    if (e.startsWith('prueba')) return 'prueba';
+    return 'libre';
+  }
+
+  // Conteo de máquinas operativas por estado de hoy
+  function conteoHoy() {
+    const c = {};
+    Object.keys(COLOR_MAPA).forEach(k => { c[k] = 0; });
+    (E.datos.maquinas || []).filter(m => /^operativa$/i.test(m.est) && PLANO[m.n]).forEach(m => { c[estadoMapa(m.n)]++; });
+    return c;
+  }
+  const hayRecorridoHoy = () => Object.keys(PLANO).some(n => recorridoHoy(n));
+
+  function tarjetasHoyHtml() {
+    const c = conteoHoy();
+    const total = Object.values(c).reduce((a, b) => a + b, 0);
+    const ult = E.datos.recorrido && E.datos.recorrido.ultimo;
+    return `<div class="planta-hoy">
+        <div class="ph-grande"><b class="num">${c.produciendo}</b><span>de ${total} máquinas operativas<br>produciendo hoy</span></div>
+        <div class="ph-chips">${['arrancar', 'molde', 'falla', 'falta', 'libre', 'sinreg'].filter(k => c[k]).map(k =>
+          `<span><i style="--c:${COLOR_MAPA[k].c};border:1.5px solid ${COLOR_MAPA[k].b}"></i><b class="num">${c[k]}</b> ${COLOR_MAPA[k].txt}</span>`).join('')}</div>
+      </div>
+      ${hayRecorridoHoy() ? '' : `<div class="aviso-dato" style="margin:6px 4px 0">Todavía no hay recorrido de hoy${ult ? ` (el último fue el ${fechaHora(ult)})` : ''}. Las máquinas salen como "Sin recorrido hoy".</div>`}`;
   }
 
   function mapaHtml() {
@@ -592,7 +604,7 @@
       <div class="leyenda">
         ${Object.values(COLOR_MAPA).map(k => `<span><i style="--c:${k.c};border:1.5px solid ${k.b}"></i>${k.txt}</span>`).join('')}
       </div>
-      <div class="nota">${E.datos.recorrido ? `Colores según el último recorrido (${fechaHora(E.datos.recorrido.ultimo)}). Si una máquina no salió en el recorrido, se usa el Seguimiento de OP.` : 'Colores según el estatus del Seguimiento de OP.'} Barra blanca = avance de la OP.</div>
+      <div class="nota">Colores según el recorrido de hoy. Si una máquina no salió en el recorrido de hoy, aparece como "Sin recorrido hoy". Barra blanca = avance de la OP.</div>
       <div class="nota">Solo se muestran las máquinas operativas (${(E.datos.maquinas || []).filter(m => /^operativa$/i.test(m.est) && PLANO[m.n]).length}). Las demás están en Lista. Toca una máquina para ver su OP y qué productos caben en ella.</div>`;
   }
 
@@ -606,7 +618,8 @@
     lista.forEach(m => { (grupos[m.lin || 'Otras'] = grupos[m.lin || 'Otras'] || []).push(m); });
     $vista.innerHTML = `
       <div class="cabecera">${st('mantenimiento', 'st-grande')}<div><b>Máquinas</b><span>Estatus, lo que tienen montado y qué cabe en cada una</span></div></div>
-      <div class="segmento">
+      ${tarjetasHoyHtml()}
+      <div class="segmento" style="margin-top:10px">
         <button type="button" data-vista="mapa" class="${E.vistaMaq === 'mapa' ? 'on' : ''}">Mapa</button>
         <button type="button" data-vista="lista" class="${E.vistaMaq === 'lista' ? 'on' : ''}">Lista</button>
         <button type="button" data-vista="asignar" class="${E.vistaMaq === 'asignar' ? 'on' : ''}">Asignar</button>
@@ -688,15 +701,53 @@
     // En falla, cambio de molde o sin operario/MP: no está disponible para asignar
     if (['falla', 'molde', 'falta'].includes(estadoMapa(n))) return null;
     const ops = E.opsPorMaq[n] || [];
-    const rc = recorridoDe(n);
+    // Si el recorrido de hoy la vio produciendo o por arrancar, no está libre aunque no tenga OP cargada
+    if (!ops.length && ['produciendo', 'arrancar', 'prueba'].includes(estadoMapa(n))) return null;
     if (!ops.length) return { tipo: 'libre', orden: 0, txt: 'Libre · sin OP' };
-    if (ops.length === 1 && rc && /finalizada/i.test(rc.est)) return { tipo: 'libre', orden: 0, txt: 'Orden finalizada en el recorrido' };
-    if (ops.length === 1 && !/pendiente/i.test(ops[0].clas)) {
+    if (ops.length === 1 && estadoMapa(n) === 'libre') return { tipo: 'libre', orden: 0, txt: 'Orden finalizada (recorrido de hoy)' };
+    // "Por terminar" solo si el recorrido de hoy la vio produciendo
+    if (ops.length === 1 && !/pendiente/i.test(ops[0].clas) && estadoMapa(n) === 'produciendo') {
       const o = ops[0];
       const pct = o.uni ? Math.round(o.prod / o.uni * 100) : 0;
+      if (pct >= 100) return { tipo: 'termina', orden: 1, pct, txt: `OP cumplida · ${pct}%` };
       if (pct >= UMBRAL_TERMINA) return { tipo: 'termina', orden: 1, pct, txt: `Por terminar · ${pct}% · faltan ${fmt(Math.max(0, o.uni - o.prod))}` };
     }
     return null;
+  }
+
+  // Avisos del día: lo que hay que tener en cuenta hoy en planta
+  function avisosDelDia() {
+    if (!E.datos || !E.datos.maquinas) return [];
+    const av = [];
+    const opers = E.datos.maquinas.filter(m => /^operativa$/i.test(m.est) && /inyectora|sopladora/i.test(m.cat));
+    opers.forEach(m => {
+      const n = m.n, est = estadoMapa(n), rc = recorridoHoy(n);
+      if (est === 'molde') av.push({ orden: 1, c: 'var(--rojo)', n, txt: `En cambio de molde${rc && rc.prod ? ' · ' + corto(rc.prod) : ''}` });
+      if (est === 'falla') av.push({ orden: 2, c: '#9AA5B4', n, txt: `${rc.est}${rc.notas ? ' · ' + rc.notas : ''}` });
+      if (est === 'falta') av.push({ orden: 2, c: 'var(--lila)', n, txt: rc.est });
+      const l = liberacion(n);
+      if (l) {
+        const urg = candidatosPara(n, false).filter(c => c.nivel <= 1).length;
+        const op = (E.opsPorMaq[n] || [])[0];
+        av.push({
+          orden: l.tipo === 'termina' ? 0 : 3, c: l.tipo === 'termina' ? 'var(--narciso)' : '#fff', n,
+          txt: l.tipo === 'termina'
+            ? `${l.pct >= 100 ? `Ya cumplió la OP (${l.pct}%)` : `Va a terminar: ${l.pct}%`}${op ? ' de ' + corto(op.comp) : ''}. Prepara lo siguiente${urg ? ` (${urg} críticos/urgentes caben)` : ''}`
+            : `${l.txt}${urg ? ` · ${urg} críticos/urgentes caben` : ''}`
+        });
+      }
+    });
+    return av.sort((a, b) => (a.orden - b.orden) || (Number(a.n) - Number(b.n)));
+  }
+
+  function avisosHtml(max) {
+    const av = avisosDelDia();
+    if (!av.length) return '';
+    return `<div class="tarjeta avisos">
+      ${av.slice(0, max).map(a => `<a class="aviso-fila" href="#/m/${encodeURIComponent(a.n)}">
+        <span class="aviso-maq" style="--c:${a.c}">${esc(a.n)}</span><span class="aviso-txt">${esc(a.txt)}</span></a>`).join('')}
+      ${av.length > max ? `<a class="asig-mas" href="#/maquinas">Ver los ${av.length} avisos en Máquinas →</a>` : ''}
+    </div>`;
   }
 
   function filaCandidato({ p, z }) {
@@ -727,6 +778,7 @@
       </div>`;
     }).join('');
     return `
+      ${avisosDelDia().length ? `<div class="titulo">Avisos del día · ${avisosDelDia().length}</div>${avisosHtml(99)}` : ''}
       <div class="titulo">Elegir máquina</div>
       <div class="sel-maq">${opers.map(m => {
         const l = liberacion(m.n);
